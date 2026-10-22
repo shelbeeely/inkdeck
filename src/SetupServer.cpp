@@ -75,7 +75,7 @@ for(const [n,p] of Z){const o=new Option(n.replace(/_/g," "),p);o.dataset.zone=n
 sel.add(new Option("Other (POSIX TZ string)",""));
 function pick(){const z=[...sel.options].find(o=>o.dataset.zone===browser);
  if(cur&&cur!=="UTC0"){const m=[...sel.options].find(o=>o.value===cur);if(m){sel.value=cur}else{sel.value="";tz.value=cur}}
- else if(z){sel.value=z.value}else{sel.value="UTC0"}}
+ else if(z){z.selected=true}else{sel.value="UTC0"}}
 pick();function sync(){const other=sel.value==="";tz.hidden=!other;if(!other)tz.value=sel.value}
 sel.onchange=sync;sync();
 const tok=document.getElementById("toklink");

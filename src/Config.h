@@ -32,6 +32,11 @@ struct Config {
   // Merges "key = value" lines into the settings stored on the device (an
   // empty value removes that key), then reloads. Returns false on NVS failure.
   bool storeOnDevice(const char* lines);
+  // The NVS half of storeOnDevice, without the reload: safe to call from
+  // another task (the caller arranges a load() on the main loop).
+  static bool storeLines(const char* lines);
+  // True for the setting names this file understands.
+  static bool isKnownKey(const char* key);
   // True if kPath sets `key` to a non-empty value (it then overrides the
   // device-stored one).
   bool sdOverrides(const char* key) const;

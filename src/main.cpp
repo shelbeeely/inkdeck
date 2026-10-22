@@ -273,6 +273,30 @@ void uiDrawHardwareFooter(const char* a, const char* b, const char* c, const cha
   freeink::PowerManager::deepSleepUntilPowerButton();
 }
 
+// Settings sent by the web flasher page (Improv command 0x80). Runs on the
+// Improv task: only validates and writes NVS; the main loop reloads.
+bool acceptFlasherSettings(const char* lines) {
+  const char* p = lines;
+  while (*p) {
+    const char* nl = strchr(p, '\n');
+    const size_t len = nl ? static_cast<size_t>(nl - p) : strlen(p);
+    char line[256];
+    memcpy(line, p, len);
+    line[len] = '\0';
+    const char* first = line + strspn(line, " \t");
+    char* eq = strchr(line, '=');
+    if (*first && *first != '#') {
+      if (!eq) return false;
+      char* end = eq;
+      while (end > first && (end[-1] == ' ' || end[-1] == '\t')) --end;
+      *end = '\0';
+      if (!Config::isKnownKey(first)) return false;
+    }
+    p += len + (nl ? 1 : 0);
+  }
+  return Config::storeLines(lines);
+}
+
 bool prepareSleep() {
   if (g_state.screen == AppScreen::Editor && documentHasUserChanges() && !saveDocument()) {
     showToast("Save failed");
@@ -287,6 +311,7 @@ bool prepareSleep() {
 void setup() {
   Serial.begin(115200);
   // Answer the web flasher's Wi-Fi step (Improv) while the rest boots.
+  Improv::setSettingsHandler(acceptFlasherSettings);
   Improv::begin(false);
   delay(50);
 
@@ -342,6 +367,12 @@ void loop() {
   char improvSsid[33], improvPassword[65];
   if (Improv::takeWifiRequest(improvSsid, improvPassword)) startSetup(improvSsid, improvPassword, true);
   if (g_state.screen == AppScreen::Setup) setupLoop();
+  if (Improv::takeSettingsChanged()) {
+    g_config.load();
+    Clock::applyTimezone(g_config.timezone);
+    Improv::setProvisioned(g_config.hasWifi());
+    showToast("Settings received");
+  }
 
   BleHid.poll();
   char bleFailure[48];

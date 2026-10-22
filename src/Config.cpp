@@ -189,7 +189,23 @@ bool Config::writeTemplateIfMissing() const {
   return true;
 }
 
+bool Config::isKnownKey(const char* key) {
+  static const char* kKeys[] = {"wifi_ssid", "wifi_password", "timezone",     "notes_folder",  "journal_subfolder",
+                                "repo_url",  "branch",        "git_token",    "github_repo",   "github_branch",
+                                "github_token"};
+  for (const char* k : kKeys) {
+    if (strcmp(k, key) == 0) return true;
+  }
+  return false;
+}
+
 bool Config::storeOnDevice(const char* lines) {
+  const bool ok = storeLines(lines);
+  load();
+  return ok;
+}
+
+bool Config::storeLines(const char* lines) {
   const String stored = readStored();
   String merged;
   // Keep stored lines whose key isn't being set now...
@@ -228,7 +244,6 @@ bool Config::storeOnDevice(const char* lines) {
     ok = prefs.putString(kPrefsKey, merged) == merged.length();
   }
   prefs.end();
-  load();
   return ok;
 }
 

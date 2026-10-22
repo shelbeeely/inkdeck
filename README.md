@@ -45,16 +45,24 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 ## Installing from the browser
 
 The web flasher installs InkDeck from Chrome or Edge on a computer, with no
-toolchain, then sets everything up without a config file:
+toolchain, and sends it everything it needs over the same USB cable:
 
-1. **Install**: plug the X4 in over USB-C, open the flasher page, press
-   *Connect and install* and pick `USB JTAG/serial debug unit`.
-2. **Wi-Fi**: when the X4 restarts, the flasher asks for your Wi-Fi network
-   and password and sends them over USB ([Improv Serial](https://www.improv-wifi.com/serial/)).
-3. **Journal**: choose *Visit Device*. The X4 serves a setup page on your
-   network (its address and a QR code are also on its screen) where you paste
-   the repository URL from GitJournal and an access token, and confirm the
-   time zone (pre-selected from your browser). Press *OK* on the X4 to sync.
+1. **Settings**: fill in the repository URL from GitJournal, an access token,
+   the time zone (pre-selected from your browser), and optionally Wi-Fi.
+2. **Install**: plug the X4 in over USB-C, press *Connect and install* and
+   pick `USB JTAG/serial debug unit`. When the X4 restarts, the installer asks
+   for Wi-Fi and checks it ([Improv Serial](https://www.improv-wifi.com/serial/)).
+3. **Done**: when the installer closes, the page sends your settings and the
+   X4 shows *Settings received*. Choose *Sync* to pull your journal.
+   *Send settings only* does the same for an X4 already running InkDeck.
+
+Settings travel as Improv packets with InkDeck's own command (`0x80`, one or
+more `key = value` lines per packet; see `src/Improv.h`), so they need no
+Wi-Fi. The page itself saves nothing.
+
+Alternatively, after the Wi-Fi step choose *Visit Device*: the X4 serves a
+setup page on your network (address and QR code on its screen) with the same
+fields.
 
 Later changes: *Menu &rarr; Setup over Wi-Fi* brings the same page back.
 Settings entered this way are stored on the device (NVS). `/inkdeck.txt` on
@@ -201,5 +209,7 @@ tools/
   merge_bin.py          post-build: one image for the web flasher (inkdeck-full.bin)
   build_web_flasher.py  assembles web/ + image + manifest.json into a site
 web/
-  index.html     the browser installer page (ESP Web Tools)
+  index.html     the browser installer page (ESP Web Tools + settings form)
+  settings.js    sends settings to the X4 over Web Serial (Improv command 0x80)
+  timezones.js   IANA -> POSIX time zones (same table as the device's setup page)
 ```

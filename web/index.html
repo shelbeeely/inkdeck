@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>InkDeck Installer</title>
 <link rel="icon" href="data:,">
-<meta name="description" content="Install InkDeck on an Xteink X3/X4 from your browser, then connect it to Wi-Fi and your GitJournal repository.">
+<meta name="description" content="Install InkDeck on an Xteink X3/X4 from your browser and send it your Wi-Fi and GitJournal settings over USB.">
 <script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
 <style>
   :root {
@@ -19,6 +19,8 @@
     --note: #fbf1d9;
     --note-line: #e8d29c;
     --link: #0b57d0;
+    --ok: #1a7f37;
+    --err: #b3261e;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -32,6 +34,8 @@
       --note: #2e2717;
       --note-line: #5b4b22;
       --link: #8ab4f8;
+      --ok: #7ee2a8;
+      --err: #f2b8b5;
     }
   }
   :root[data-theme="dark"] {
@@ -45,6 +49,8 @@
     --note: #2e2717;
     --note-line: #5b4b22;
     --link: #8ab4f8;
+    --ok: #7ee2a8;
+    --err: #f2b8b5;
   }
   * { box-sizing: border-box; }
   body {
@@ -66,7 +72,7 @@
     padding: 20px;
   }
   .install { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-  .install button {
+  .install [slot="activate"] {
     font: inherit;
     font-weight: 650;
     padding: 12px 22px;
@@ -76,7 +82,7 @@
     color: var(--accent-text);
     cursor: pointer;
   }
-  .install button:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+  .install [slot="activate"]:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   .muted { color: var(--muted); font-size: 0.93rem; }
   ol { padding-left: 1.3em; margin: 0; }
   ol li { margin: 0 0 12px; }
@@ -90,15 +96,86 @@
     font-size: 0.95rem;
   }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; overflow-wrap: anywhere; }
+  form label { display: block; font-weight: 600; margin: 16px 0 4px; }
+  form label:first-of-type { margin-top: 4px; }
+  form input, form select {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  form input:focus-visible, form select:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+  .hint { display: block; color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 0.95rem; }
+  .check input { width: auto; margin: 0; }
+  .secondary {
+    font: inherit;
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .secondary:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+  .status { min-height: 1.4em; margin: 0; font-size: 0.95rem; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
 </style>
 </head>
 <body>
 <main>
   <h1>Install InkDeck</h1>
   <p class="lede">Markdown writing and a daily journal for the Xteink X3/X4, synced with
-    <a href="https://github.com/gitjournal/gitjournal">GitJournal</a>. Install it from this page, then
-    set up Wi-Fi and your journal repository without touching a config file.</p>
+    <a href="https://github.com/gitjournal/gitjournal">GitJournal</a>. Fill in your settings, install,
+    and the X4 is ready to sync &mdash; no config file, no setup page.</p>
 
+  <h2>1. Your settings</h2>
+  <section class="card" aria-label="Settings">
+    <form id="settings" autocomplete="off">
+      <label for="repo_url">GitJournal repository</label>
+      <input id="repo_url" name="repo_url" placeholder="git@github.com:you/journal.git" spellcheck="false">
+      <span class="hint">In GitJournal: <em>Settings &rarr; Git Remote Settings &rarr; Git Host</em>. SSH or https URL.</span>
+
+      <label for="git_token">Access token</label>
+      <input id="git_token" name="git_token" type="password" placeholder="github_pat_..." spellcheck="false">
+      <span class="hint">GitJournal signs in with an SSH key; the X4 uses a token instead.
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a
+        fine-grained token</a> for this repository only, with <strong>Contents: Read and write</strong>.</span>
+
+      <label for="tzsel">Time zone</label>
+      <select id="tzsel"></select>
+      <input id="timezone" name="timezone" hidden placeholder="POSIX TZ string, e.g. CET-1CEST,M3.5.0,M10.5.0/3">
+
+      <details>
+        <summary>Wi-Fi</summary>
+        <span class="hint">Optional: the installer also asks for Wi-Fi (and checks it) right after installing.</span>
+        <label for="wifi_ssid">Network name</label>
+        <input id="wifi_ssid" name="wifi_ssid" spellcheck="false">
+        <label for="wifi_password">Password</label>
+        <input id="wifi_password" name="wifi_password" type="password">
+      </details>
+
+      <details>
+        <summary>More</summary>
+        <label for="branch">Branch</label>
+        <input id="branch" name="branch" value="main" spellcheck="false">
+        <label for="notes_folder">Notes folder on the SD card</label>
+        <input id="notes_folder" name="notes_folder" placeholder="/Journal" spellcheck="false">
+        <label for="journal_subfolder">Journal subfolder (inside the notes folder)</label>
+        <input id="journal_subfolder" name="journal_subfolder" placeholder="top level" spellcheck="false">
+      </details>
+    </form>
+    <p class="muted" style="margin-top:16px">These go straight to the X4 over the USB cable. Nothing is
+      uploaded or saved by this page.</p>
+  </section>
+
+  <h2>2. Install</h2>
   <section class="card install" aria-label="Install">
     <esp-web-install-button manifest="manifest.json">
       <button slot="activate">Connect and install</button>
@@ -106,34 +183,26 @@
         (not Safari, Firefox, or a phone).</span>
       <span slot="not-allowed">This page has to be opened over HTTPS (or from localhost) to reach USB devices.</span>
     </esp-web-install-button>
-    <p class="muted">Plug the X4 into this computer with a USB-C data cable and wake it, then press
-      the button and pick the port named <code>USB JTAG/serial debug unit</code>.</p>
+    <label class="check"><input type="checkbox" id="autosend" checked> Send my settings when the installer closes</label>
+    <p class="muted">Plug the X4 in with a USB-C data cable and wake it, press the button, and pick
+      <code>USB JTAG/serial debug unit</code>. Already running InkDeck?
+      <button type="button" class="secondary" id="sendnow">Send settings only</button></p>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
   </section>
 
   <h2>What happens</h2>
   <div class="card">
     <ol>
       <li><strong>Install.</strong> The installer writes InkDeck to the X4 (about a minute). Choose
-        <em>erase</em> for a clean install; it clears saved Wi-Fi and Bluetooth pairings, not your SD card.</li>
-      <li><strong>Wi-Fi.</strong> When the X4 restarts, the installer asks for your Wi-Fi network and
-        password and sends them over the USB cable. Use a 2.4&nbsp;GHz network.</li>
-      <li><strong>Your journal.</strong> Choose <em>Visit Device</em>. A setup page opens from the X4
-        itself (its address and a QR code are also on its screen). Paste the repository URL from
-        GitJournal (<em>Settings &rarr; Git Remote Settings &rarr; Git Host</em>) and an access token,
-        and check the time zone. Then press <em>OK</em> on the X4 to sync.</li>
+        <em>erase</em> for a clean install; it clears saved settings and Bluetooth pairings, not your SD card.</li>
+      <li><strong>Wi-Fi.</strong> When the X4 restarts, the installer asks for your Wi-Fi network. Enter it
+        there (it's checked on the spot), or skip it if you filled in Wi-Fi above.</li>
+      <li><strong>Settings.</strong> Close the installer: this page sends your settings over the same cable
+        and the X4 shows <em>Settings received</em>. Choose <em>Sync</em> in its menu to pull your journal.</li>
     </ol>
     <div class="note">The X4 turns Bluetooth off while it's on Wi-Fi, so a paired keyboard reconnects
-      once setup or sync finishes. To change settings later, use <em>Menu &rarr; Setup over Wi-Fi</em>
-      on the device.</div>
-  </div>
-
-  <h2>Access token</h2>
-  <div class="card">
-    <p>GitJournal signs in with an SSH key; the X4 uses an access token instead. On GitHub,
-      <a href="https://github.com/settings/personal-access-tokens/new">create a fine-grained token</a>
-      for your journal repository only, with <strong>Contents: Read and write</strong>.</p>
-    <p class="muted">GitHub is the only provider InkDeck syncs with so far. The token and Wi-Fi password
-      are stored on the X4 and sent only to GitHub and your network.</p>
+      once sync finishes. You can also change settings later from <em>Menu &rarr; Setup over Wi-Fi</em>,
+      or come back here and use <em>Send settings only</em>.</div>
   </div>
 
   <h2>If it doesn't connect</h2>
@@ -143,7 +212,104 @@
       <li>Close any other program using the port (Arduino IDE, PlatformIO monitor), then try again.</li>
       <li>Unplug the X4, plug it back in, wake it, and press <em>Connect and install</em> again.</li>
     </ol>
+    <p class="muted" style="margin-top:12px">GitHub is the only provider InkDeck syncs with so far. The
+      token and Wi-Fi password are stored on the X4 and sent only to GitHub and your network.</p>
   </div>
 </main>
+<script type="module">
+  import { sendSettings, SettingsError } from "./settings.js";
+  import { ZONES } from "./timezones.js";
+
+  const form = document.getElementById("settings");
+  const sel = document.getElementById("tzsel");
+  const tz = document.getElementById("timezone");
+  const status = document.getElementById("status");
+  const autosend = document.getElementById("autosend");
+
+  // Time zone: preselect the browser's.
+  let browserZone = "";
+  try { browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+  for (const [zone, posix] of ZONES) {
+    const o = new Option(zone.replace(/_/g, " "), posix);
+    o.dataset.zone = zone;
+    sel.add(o);
+  }
+  sel.add(new Option("Other (POSIX TZ string)", ""));
+  const match = [...sel.options].find((o) => o.dataset.zone === browserZone);
+  // Select the option itself: zones sharing a rule (Paris/Berlin) share a value.
+  if (match) match.selected = true; else sel.value = "UTC0";
+  const syncTz = () => { tz.hidden = sel.value !== ""; if (sel.value) tz.value = sel.value; };
+  sel.addEventListener("change", syncTz);
+  syncTz();
+
+  function settingsLines() {
+    const lines = [];
+    for (const name of ["repo_url", "git_token", "branch", "timezone", "wifi_ssid", "wifi_password",
+                        "notes_folder", "journal_subfolder"]) {
+      const value = form.elements[name].value.replace(/[\r\n]/g, "").trim();
+      if (value) lines.push(`${name} = ${value}`);
+    }
+    return lines;
+  }
+
+  function show(text, kind = "") {
+    status.textContent = text;
+    status.className = "status " + kind;
+  }
+
+  async function openPort() {
+    const granted = await navigator.serial.getPorts();
+    const port = granted.length === 1 ? granted[0] : await navigator.serial.requestPort();
+    // The installer closes the port as it exits: give that a moment to finish.
+    for (let i = 0; ; i++) {
+      try {
+        await port.open({ baudRate: 115200 });
+        return port;
+      } catch (e) {
+        if (e.name !== "InvalidStateError" || i >= 20) throw e;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+  }
+
+  let busy = false;
+  async function send() {
+    const lines = settingsLines();
+    if (!lines.length) { show("Fill in at least one setting first.", "err"); return; }
+    if (busy) return;
+    busy = true;
+    let port;
+    try {
+      show("Connecting to InkDeck...");
+      port = await openPort();
+      show("Sending settings...");
+      await sendSettings(port, lines, {
+        onProgress: (i, n) => n > 1 && show(`Sending settings (${i}/${n})...`),
+      });
+      show("Settings sent. The X4 shows \u201cSettings received\u201d; choose Sync there to pull your journal.", "ok");
+    } catch (e) {
+      if (e.name === "NotFoundError") show("No device selected.", "err");
+      else if (e instanceof SettingsError) show(e.message, "err");
+      else show(`Couldn't send settings: ${e.message}`, "err");
+    } finally {
+      busy = false;
+      if (port) await port.close().catch(() => {});
+    }
+  }
+
+  document.getElementById("sendnow").addEventListener("click", () => {
+    if (!("serial" in navigator)) { show("Use Chrome or Edge on a computer to reach USB devices.", "err"); return; }
+    send();
+  });
+
+  // Send automatically when the installer dialog closes.
+  new MutationObserver((records) => {
+    for (const r of records) {
+      for (const node of r.removedNodes) {
+        if (node.nodeName === "EWT-INSTALL-DIALOG" && autosend.checked && settingsLines().length) send();
+      }
+    }
+  }).observe(document.body, { childList: true });
+</script>
 </body>
 </html>

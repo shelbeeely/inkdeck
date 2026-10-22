@@ -27,11 +27,14 @@ constexpr uint8_t kErrUnableToConnect = 0x03;
 constexpr uint8_t kCmdWifiSettings = 0x01;
 constexpr uint8_t kCmdCurrentState = 0x02;
 constexpr uint8_t kCmdDeviceInfo = 0x03;
+constexpr uint8_t kCmdInkDeckSettings = 0x80;  // InkDeck extension, see Improv.h
 
 SemaphoreHandle_t g_lock = nullptr;
 uint8_t g_state = kStateReady;
 char g_url[64] = {0};
 bool g_requestPending = false;
+SettingsHandler g_settingsHandler = nullptr;
+bool g_settingsChanged = false;
 char g_reqSsid[33] = {0};
 char g_reqPassword[65] = {0};
 
@@ -125,6 +128,20 @@ void handleRpc(const uint8_t* data, uint8_t len) {
       sendState(g_state);
       break;
     }
+    case kCmdInkDeckSettings: {
+      char lines[256];
+      memcpy(lines, body, bodyLen);
+      lines[bodyLen] = '\0';
+      if (bodyLen == 0 || strlen(lines) != bodyLen || !g_settingsHandler || !g_settingsHandler(lines)) {
+        sendError(kErrInvalidRpc);
+        break;
+      }
+      g_settingsChanged = true;
+      const char* ok = "ok";
+      sendError(kErrNone);
+      sendResult(kCmdInkDeckSettings, &ok, 1);
+      break;
+    }
     default:
       sendError(kErrUnknownRpc);
       break;
@@ -179,7 +196,7 @@ void feedByte(uint8_t b) {
 void begin(bool provisioned) {
   g_lock = xSemaphoreCreateMutex();
   g_state = provisioned ? kStateProvisioned : kStateReady;
-  xTaskCreate(task, "improv", 4096, nullptr, 1, nullptr);
+  xTaskCreate(task, "improv", 6144, nullptr, 1, nullptr);  // settings writes go to NVS from here
 }
 
 void setProvisioned(bool provisioned) {
@@ -217,6 +234,17 @@ void finish(bool ok, const char* url) {
     sendState(g_state);
   }
   xSemaphoreGive(g_lock);
+}
+
+void setSettingsHandler(SettingsHandler handler) { g_settingsHandler = handler; }  // before begin()
+
+bool takeSettingsChanged() {
+  if (!g_lock) return false;
+  xSemaphoreTake(g_lock, portMAX_DELAY);
+  const bool changed = g_settingsChanged;
+  g_settingsChanged = false;
+  xSemaphoreGive(g_lock);
+  return changed;
 }
 
 void setUrl(const char* url) {
