@@ -372,3 +372,41 @@ void Document::prefixLines(const char* prefix) {
   if (anchor_ > len_) anchor_ = len_;
   dirty_ = true;
 }
+
+// ---------------------------------------------------------------------------
+// YAML front matter
+// ---------------------------------------------------------------------------
+bool Document::setFrontMatterValue(const char* key, const char* value) {
+  if (strncmp(buf_, "---\n", 4) != 0) return false;
+  const char* end = strstr(buf_ + 4, "\n---");
+  if (!end) return false;
+  const size_t keyLen = strlen(key);
+  for (const char* line = buf_ + 4; line < end; line = strchr(line, '\n') + 1) {
+    if (strncmp(line, key, keyLen) == 0 && line[keyLen] == ':') {
+      const uint32_t vs = static_cast<uint32_t>(line - buf_) + keyLen + 1;
+      uint32_t ve = vs;
+      while (ve < len_ && buf_[ve] != '\n') ++ve;
+      char repl[80];
+      const int rn = snprintf(repl, sizeof(repl), " %s", value);
+      if (rn <= 0 || static_cast<size_t>(rn) >= sizeof(repl)) return false;
+      const int32_t delta = rn - static_cast<int32_t>(ve - vs);
+      if (len_ + delta > INKDECK_DOC_CAPACITY - 1) return false;
+      memmove(buf_ + ve + delta, buf_ + ve, len_ - ve);
+      memcpy(buf_ + vs, repl, rn);
+      len_ += delta;
+      buf_[len_] = '\0';
+      if (cursor_ >= ve) cursor_ += delta;
+      if (anchor_ >= ve) anchor_ += delta;
+      dirty_ = true;
+      return true;
+    }
+    if (!strchr(line, '\n')) break;
+  }
+  return false;
+}
+
+void Document::appendAtEnd(const char* s) {
+  insertTextAt(len_, s, strlen(s));
+  cursor_ = len_;
+  anchor_ = cursor_;
+}

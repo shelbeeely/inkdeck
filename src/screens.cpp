@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "Clock.h"
+#include "Config.h"
+#include "Journal.h"
+#include "SyncFlow.h"
+
 using namespace freeink::ui;
 using freeink::KeyEvent;
 using freeink::SpecialKey;
@@ -16,8 +21,21 @@ static constexpr uint8_t kModShift = 0x02 | 0x20;  // L/R Shift
 static constexpr uint8_t kModAlt = 0x04 | 0x40;    // L/R Alt / Option
 static constexpr uint8_t kModGui = 0x08 | 0x80;    // L/R Cmd / Win / GUI
 
-static const char* kMenuItems[] = {"New file", "New folder", "Rename", "Delete", "Bluetooth", "Orientation",
-                                   "Forget HID devices"};
+static const char* kMenuItems[] = {"Today's journal", "Sync",        "New file",      "New folder",
+                                   "Rename",          "Delete",      "Bluetooth",     "Orientation",
+                                   "Set date/time",   "Forget HID devices"};
+enum MenuItem : int {
+  kMenuToday,
+  kMenuSync,
+  kMenuNewFile,
+  kMenuNewFolder,
+  kMenuRename,
+  kMenuDelete,
+  kMenuBluetooth,
+  kMenuOrientation,
+  kMenuSetClock,
+  kMenuForget,
+};
 static constexpr int kMenuCount = sizeof(kMenuItems) / sizeof(kMenuItems[0]);
 static const char* kOrientationItems[] = {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"};
 static constexpr int kOrientationCount = sizeof(kOrientationItems) / sizeof(kOrientationItems[0]);
@@ -33,6 +51,32 @@ void showToast(const char* msg) {
 }
 
 static bool toastActive() { return g_state.toast[0] && millis() < g_state.toastUntil; }
+
+bool saveDocument() {
+  Document& d = g_state.doc;
+  if (d.dirty()) Journal::touchModified(d);
+  if (!d.save()) return false;
+  g_state.journalStub = 0;  // saved on purpose: keep the heading from now on
+  if (strcmp(d.path(), Config::kPath) == 0) {  // edited the settings on-device
+    g_config.load();
+    Clock::applyTimezone(g_config.timezone);
+  }
+  return true;
+}
+
+bool documentHasUserChanges() {
+  const Document& d = g_state.doc;
+  return d.dirty() && !Journal::isUntouched(d, g_state.journalStub);
+}
+
+static void leaveEditor() {
+  if (documentHasUserChanges()) {
+    uiGotoScreen(AppScreen::ConfirmDiscard);
+  } else {
+    loadDir();
+    uiGotoScreen(AppScreen::Browser);
+  }
+}
 
 static void joinPath(char* out, size_t outsz, const char* base, const char* leaf) {
   if (strcmp(base, "/") == 0) {
@@ -174,6 +218,7 @@ static void browserOpen() {
 
   char full[224];
   joinPath(full, sizeof(full), st.path, label);
+  g_state.journalStub = 0;
   if (g_state.doc.load(full)) {
     if (g_state.doc.truncated()) showToast("File too large; truncated");
     uiGotoScreen(AppScreen::Editor);
@@ -188,6 +233,58 @@ static void openMenu() {
   if (st.entryCount > 0 && strcmp(st.names[st.browserSel], "..") != 0) st.menuTarget = st.browserSel;
   st.menuSel = 0;
   uiGotoScreen(AppScreen::Menu);
+}
+
+// ---------------------------------------------------------------------------
+// Journal / clock / sync
+// ---------------------------------------------------------------------------
+static void startNameEntry(NamePurpose purpose, const char* prefill);
+
+static void startClockEntry() {
+  char now[24];
+  Clock::formatForEntry(now, sizeof(now));
+  startNameEntry(NamePurpose::SetClock, now);
+}
+
+// Shows the journal folder in the browser, so Back from the entry lands there.
+static void browseJournalFolder() {
+  AppState& st = g_state;
+  if (g_config.journalSubfolder[0]) {
+    snprintf(st.path, sizeof(st.path), "%s/%s", g_config.notesFolder, g_config.journalSubfolder);
+  } else {
+    snprintf(st.path, sizeof(st.path), "%s", g_config.notesFolder);
+  }
+  loadDir();
+}
+
+static void openTodayJournal() {
+  AppState& st = g_state;
+  if (!Clock::valid()) {
+    // No clock yet (e.g. after a reset): get it from the network if we can,
+    // otherwise ask for it. Either way, come back here once it's set.
+    st.pendingToday = true;
+    if (g_config.hasWifi()) {
+      runSync(false);
+      if (!Clock::valid()) return;  // stay on the Sync screen showing why
+    } else {
+      if (!BleHid.isConnected()) {
+        st.pendingToday = false;
+        showToast("Set the clock: Sync, or pair a keyboard");
+        return;
+      }
+      startClockEntry();
+      return;
+    }
+  }
+  st.pendingToday = false;
+  if (!Journal::openToday(st.doc, st.journalStub)) {
+    showToast("Couldn't open today's entry");
+    uiGotoScreen(AppScreen::Browser);
+    return;
+  }
+  browseJournalFolder();
+  if (st.doc.truncated()) showToast("File too large; truncated");
+  uiGotoScreen(AppScreen::Editor);
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +337,19 @@ static void ensureMdExt(char* name, size_t sz) {
 
 static void commitName() {
   AppState& st = g_state;
+  if (st.namePurpose == NamePurpose::SetClock) {
+    if (!Clock::setFromString(st.nameBuf)) {
+      showToast("Use YYYY-MM-DD HH:MM");
+      return;
+    }
+    if (st.pendingToday) {
+      openTodayJournal();
+    } else {
+      showToast("Clock set");
+      uiGotoScreen(AppScreen::Browser);
+    }
+    return;
+  }
   if (st.nameLen == 0) {
     showToast("Name required");
     return;
@@ -256,6 +366,7 @@ static void commitName() {
       showToast("Already exists");
       return;
     }
+    g_state.journalStub = 0;
     g_state.doc.reset(full);
     if (!g_state.doc.save()) {
       showToast("Create failed");
@@ -574,7 +685,7 @@ static void editorKey(const KeyEvent& ev) {
     // Save + markdown styling work with EITHER Cmd or Ctrl.
     switch (c) {
       case 's':
-        showToast(d.save() ? "Saved" : "Save failed");
+        showToast(saveDocument() ? "Saved" : "Save failed");
         return;
       case 'b':
         d.wrapSelection("**");  // bold
@@ -690,12 +801,7 @@ static void editorKey(const KeyEvent& ev) {
       for (uint16_t i = 0; i < g_state.edVisible; ++i) editorMoveVertical(1, shift);
       break;
     case SpecialKey::Escape:
-      if (d.dirty()) {
-        uiGotoScreen(AppScreen::ConfirmDiscard);
-      } else {
-        loadDir();
-        uiGotoScreen(AppScreen::Browser);
-      }
+      leaveEditor();
       return;
     case SpecialKey::None:
       if (ev.ch && !ctrl && !gui) d.insert(ev.ch);  // plain text (not a shortcut)
@@ -713,6 +819,7 @@ static void nameEntryKey(const KeyEvent& ev) {
       commitName();
       return;
     case SpecialKey::Escape:
+      st.pendingToday = false;
       uiGotoScreen(AppScreen::Menu);
       return;
     case SpecialKey::Backspace:
@@ -742,6 +849,17 @@ static void nameEntryKey(const KeyEvent& ev) {
       break;
   }
   uiInvalidate(false);
+}
+
+static void leaveSync() {
+  if (!g_state.syncDone) return;
+  if (g_state.pendingToday && Clock::valid()) {
+    openTodayJournal();
+    return;
+  }
+  g_state.pendingToday = false;
+  loadDir();  // Sync may have added or removed files
+  uiGotoScreen(AppScreen::Browser);
 }
 
 // ---------------------------------------------------------------------------
@@ -777,29 +895,39 @@ static void uiConfirm() {
       browserOpen();
       break;
     case AppScreen::Editor:
-      showToast(g_state.doc.save() ? "Saved" : "Save failed");
+      showToast(saveDocument() ? "Saved" : "Save failed");
       break;
     case AppScreen::Menu:
       switch (g_state.menuSel) {
-        case 0:
+        case kMenuToday:
+          openTodayJournal();
+          break;
+        case kMenuSync:
+          runSync(true);
+          break;
+        case kMenuNewFile:
           startNameEntry(NamePurpose::NewFile, nullptr);
           break;
-        case 1:
+        case kMenuNewFolder:
           startNameEntry(NamePurpose::NewFolder, nullptr);
           break;
-        case 2:
+        case kMenuRename:
           startRename();
           break;
-        case 3:
+        case kMenuDelete:
           startDelete();
           break;
-        case 4:
+        case kMenuBluetooth:
           enterBluetooth();
           break;
-        case 5:
+        case kMenuOrientation:
           enterOrientation();
           break;
-        case 6:
+        case kMenuSetClock:
+          g_state.pendingToday = false;
+          startClockEntry();
+          break;
+        case kMenuForget:
           forgetAll();
           break;
       }
@@ -817,8 +945,12 @@ static void uiConfirm() {
       doDelete();
       break;
     case AppScreen::ConfirmDiscard:
+      g_state.journalStub = 0;
       loadDir();
       uiGotoScreen(AppScreen::Browser);
+      break;
+    case AppScreen::Sync:
+      leaveSync();
       break;
   }
 }
@@ -829,12 +961,7 @@ static void uiBack() {
       openMenu();
       break;
     case AppScreen::Editor:
-      if (g_state.doc.dirty()) {
-        uiGotoScreen(AppScreen::ConfirmDiscard);
-      } else {
-        loadDir();
-        uiGotoScreen(AppScreen::Browser);
-      }
+      leaveEditor();
       break;
     case AppScreen::Menu:
       uiGotoScreen(AppScreen::Browser);
@@ -843,6 +970,7 @@ static void uiBack() {
       uiGotoScreen(AppScreen::Menu);
       break;
     case AppScreen::NameEntry:
+      g_state.pendingToday = false;
       uiGotoScreen(AppScreen::Menu);
       break;
     case AppScreen::Bluetooth:
@@ -857,6 +985,9 @@ static void uiBack() {
       break;
     case AppScreen::ConfirmDiscard:
       uiGotoScreen(AppScreen::Editor);
+      break;
+    case AppScreen::Sync:
+      leaveSync();
       break;
   }
 }
@@ -886,6 +1017,9 @@ void handleKey(const KeyEvent& ev) {
     case SpecialKey::Escape:
     case SpecialKey::Backspace:
       uiBack();
+      break;
+    case SpecialKey::None:
+      if (g_state.screen == AppScreen::Browser && (ev.ch == 't' || ev.ch == 'T')) openTodayJournal();
       break;
     default:
       break;
@@ -1066,6 +1200,7 @@ void nameEntryScreen(ScreenT& s, void*) {
   AppState& st = g_state;
   const char* title = st.namePurpose == NamePurpose::NewFile     ? "New file name"
                       : st.namePurpose == NamePurpose::NewFolder ? "New folder name"
+                      : st.namePurpose == NamePurpose::SetClock  ? "Date and time"
                                                                  : "Rename";
   s.header(title, nullptr, st.statusLabel);
   footer4(s, "Cancel", "OK", "", "");
@@ -1084,7 +1219,10 @@ void nameEntryScreen(ScreenT& s, void*) {
   TextStyle hint = g_theme.smallText;
   hint.align = TextAlign::Center;
   hint.maxLines = 2;
-  s.frame().target().text(s.body(), "Type a name on the keyboard.\nEnter to confirm, Esc to cancel.", hint);
+  const char* help = st.namePurpose == NamePurpose::SetClock
+                         ? "YYYY-MM-DD HH:MM (24-hour).\nEnter to confirm, Esc to cancel."
+                         : "Type a name on the keyboard.\nEnter to confirm, Esc to cancel.";
+  s.frame().target().text(s.body(), help, hint);
 
   if (toastActive()) s.popup(st.toast);
 }
@@ -1152,4 +1290,21 @@ void confirmDeleteScreen(ScreenT& s, void*) {
 
 void confirmDiscardScreen(ScreenT& s, void*) {
   confirmScreen(s, "Unsaved changes", "Discard changes to this file?\n(Ctrl-S or Save keeps them.)", "Discard");
+}
+
+void syncScreen(ScreenT& s, void*) {
+  AppState& st = g_state;
+  s.header(st.syncDone ? "Sync finished" : "Syncing...", nullptr, "");
+  if (st.syncDone) footer4(s, "Back", "OK", "", "");
+  else footer4(s, "", "", "", "");
+
+  Rect body = s.body();
+  const int16_t lineH = s.frame().target().lineHeight(g_theme.smallText.font) + 4;
+  TextStyle ts = g_theme.smallText;
+  ts.maxLines = 1;
+  for (uint8_t i = 0; i < st.syncLineCount; ++i) {
+    Rect r{body.x, static_cast<int16_t>(body.y + 8 + i * lineH), body.width, lineH};
+    if (r.bottom() > body.bottom()) break;
+    s.frame().target().text(r, st.syncLines[i], ts);
+  }
 }

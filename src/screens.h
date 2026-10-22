@@ -24,6 +24,7 @@ void bluetoothScreen(ScreenT& s, void* user);
 void sleepScreen(ScreenT& s, void* user);
 void confirmDeleteScreen(ScreenT& s, void* user);
 void confirmDiscardScreen(ScreenT& s, void* user);
+void syncScreen(ScreenT& s, void* user);
 
 // --- Input (called from the main loop) ---
 void handleKey(const freeink::KeyEvent& ev);
@@ -33,9 +34,12 @@ void handleButton(uint8_t button);
 void loadDir();             // (re)read the current directory into g_state
 void refreshStatusLabel();  // update the header connection label
 void showToast(const char* msg);  // transient bottom popup message
+bool saveDocument();              // save the open file (refreshing journal metadata)
+bool documentHasUserChanges();    // dirty, beyond a just-added journal heading
 
 // --- Implemented in main.cpp (decouple screens from the App template) ---
 void uiGotoScreen(AppScreen s);    // setScreen + full-refresh invalidate
 void uiInvalidate(bool full);      // request a re-render
+void uiRenderNow();                // paint immediately (for blocking work like Sync)
 void uiApplyOrientation();         // rebuild the UI target after orientation changes
 void uiDrawHardwareFooter(const char* a, const char* b, const char* c, const char* d);

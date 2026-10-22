@@ -2,7 +2,8 @@
 //
 // Boots, auto-detects X3 vs X4, mounts the SD card, brings up the BLE HID host,
 // and runs a FreeInkApp UI: a file browser, a plain-text markdown editor,
-// file/folder management, and a Bluetooth pairing screen. Hardware buttons
+// file/folder management, a Bluetooth pairing screen, a daily journal, and
+// Wi-Fi Sync (NTP clock + GitJournal repository). Hardware buttons
 // (Up/Down/Left/Right/Confirm/Back) navigate everything too.
 
 #include <Arduino.h>
@@ -21,8 +22,14 @@
 
 #include "AppState.h"
 #include "AppSettings.h"
+#include "Clock.h"
+#include "Config.h"
 #include "InkDeckIcons.h"
 #include "screens.h"
+
+// Sync runs TLS handshakes (mbedTLS) on the loop task; the default 8 KB stack
+// is too tight for them.
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 namespace ui = freeink::ui;
 using App = ui::FreeInkApp<32, 8>;
@@ -101,6 +108,8 @@ App::ScreenFn fnFor(AppScreen s) {
       return confirmDeleteScreen;
     case AppScreen::ConfirmDiscard:
       return confirmDiscardScreen;
+    case AppScreen::Sync:
+      return syncScreen;
   }
   return browserScreen;
 }
@@ -160,6 +169,13 @@ void uiGotoScreen(AppScreen s) {
 
 void uiInvalidate(bool full) {
   g_app->invalidate(full ? ui::RefreshHint::Full : ui::RefreshHint::Fast);
+}
+
+void uiRenderNow() {
+  g_app->invalidate(ui::RefreshHint::Fast);
+  display.clearScreen(0xFF);
+  g_app->render();
+  pushRefresh();
 }
 
 void uiApplyOrientation() {
@@ -239,6 +255,7 @@ void uiDrawHardwareFooter(const char* a, const char* b, const char* c, const cha
 }
 
 [[noreturn]] void enterDeepSleep() {
+  Clock::rememberNow();  // last known time, should a reset lose the clock
   BleHid.stopScan();
   BleHid.disconnect();
   g_state.toast[0] = '\0';
@@ -253,7 +270,7 @@ void uiDrawHardwareFooter(const char* a, const char* b, const char* c, const cha
 }
 
 bool prepareSleep() {
-  if (g_state.screen == AppScreen::Editor && g_state.doc.dirty() && !g_state.doc.save()) {
+  if (g_state.screen == AppScreen::Editor && documentHasUserChanges() && !saveDocument()) {
     showToast("Save failed");
     return false;
   }
@@ -293,6 +310,8 @@ void setup() {
   pushRefresh();
 
   const bool sdOk = SdMan.begin();
+  if (sdOk) g_config.load();
+  Clock::applyTimezone(g_config.timezone);  // the TZ env var doesn't survive deep sleep
   BleHid.begin("InkDeck");
   refreshStatusLabel();
   g_state.lastConnected = BleHid.isConnected();

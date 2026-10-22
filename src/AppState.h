@@ -21,12 +21,14 @@ enum class AppScreen : uint8_t {
   Sleep,
   ConfirmDelete,
   ConfirmDiscard,
+  Sync,
 };
 
 enum class NamePurpose : uint8_t {
   NewFile,
   NewFolder,
   Rename,
+  SetClock,
 };
 
 struct AppState {
@@ -48,6 +50,7 @@ struct AppState {
 
   // --- Editor ---
   Document doc;
+  uint32_t journalStub = 0;  // hash of a just-opened journal entry (0 = not one)
   int16_t edBodyW = 100;
   int16_t edLineH = 20;
   uint16_t edVisible = 1;
@@ -73,6 +76,13 @@ struct AppState {
   uint8_t btKind[kBtRows];  // 0 = scan action, 1 = connectable device
   freeink::ui::ListItem btItems[kBtRows];
   uint8_t btRowCount = 0;
+
+  // --- Sync ---
+  static constexpr int kSyncLines = 12;
+  char syncLines[kSyncLines][64];
+  uint8_t syncLineCount = 0;
+  bool syncDone = false;
+  bool pendingToday = false;  // open today's journal once the clock is set
 
   // --- Chrome ---
   char statusLabel[40] = {0};

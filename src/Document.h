@@ -81,6 +81,13 @@ class Document {
   // Prefix the current line(s) with `prefix` (e.g. "# ", "- ", "> ").
   void prefixLines(const char* prefix);
 
+  // --- YAML front matter (GitJournal metadata) --------------------------------
+  // Replace the value of an existing `key:` line inside a leading "---" block.
+  // Returns false (no change) when there is no front matter or no such key.
+  bool setFrontMatterValue(const char* key, const char* value);
+  // Append `s` at the end of the document and put the caret after it.
+  void appendAtEnd(const char* s);
+
  private:
   void deleteRange(uint32_t from, uint32_t to);  // delete [from,to), caret -> from
   void deleteRaw(uint32_t from, uint32_t to);    // delete [from,to), caret untouched
