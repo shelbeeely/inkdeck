@@ -64,8 +64,18 @@ void wifiOff() {
 }
 
 void syncGit() {
-  if (!g_config.hasGitHub()) {
-    say("GitHub not set up in /inkdeck.txt");
+  if (!g_config.hasRepo()) {
+    say(g_config.repoUrl[0] ? "Can't read repo_url" : "No repo_url set up");
+    return;
+  }
+  if (!g_config.repoIsGitHub()) {
+    char msg[64];
+    snprintf(msg, sizeof(msg), "%.40s isn't supported yet", g_config.repoHost);
+    say(msg);
+    return;
+  }
+  if (!g_config.token[0]) {
+    say("No git_token set up");
     return;
   }
   const GitSync::Result r = GitSync::run(progress);

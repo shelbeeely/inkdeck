@@ -54,26 +54,36 @@ app (and vice versa).
    entries from the phone are named like InkDeck's (`2026-10-22.md`).
 2. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
    limited to that repository, with **Contents: Read and write**.
-3. Pick **Sync** once: InkDeck creates `/inkdeck.txt` on the SD card. Fill it
-   in on a computer, or open it in InkDeck's browser and edit it on the device:
+3. Give InkDeck the repo, token and Wi-Fi, either way (or both):
 
-   ```ini
-   wifi_ssid = MyNetwork
-   wifi_password = secret
-   timezone = PST8PDT,M3.2.0,M11.1.0
-   notes_folder = /Journal
-   journal_subfolder =
-   github_repo = you/journal
-   github_branch = main
-   github_token = github_pat_...
-   ```
+   - **When flashing** (easiest): copy `flash-config.example.txt` to
+     `flash-config.txt` (git-ignored), fill it in, then `pio run -t upload`.
+     The build prints what it baked in (secrets show as `(set)`):
 
-   `notes_folder` is the SD folder mirrored with the repo root;
-   `journal_subfolder` is where Today's entries go inside it (empty = top
-   level). Comments must be on their own line (`#` first), since passwords may
-   contain `#`.
+     ```ini
+     repo_url = git@github.com:you/journal.git
+     git_token = github_pat_...
+     wifi_ssid = MyNetwork
+     wifi_password = secret
+     timezone = PST8PDT,M3.2.0,M11.1.0
+     ```
 
-4. **Sync** again. The first run downloads the repository's `.md` files into
+     Environment variables such as `INKDECK_REPO_URL` / `INKDECK_GIT_TOKEN`
+     work too and override the file.
+
+   - **On the SD card**: pick **Sync** once and InkDeck creates `/inkdeck.txt`
+     with the same keys. Fill it in on a computer, or open it in InkDeck's
+     browser and edit it on the device. Any value set there overrides the
+     baked-in one; empty values keep it.
+
+   `repo_url` takes any form you have to hand: the SSH URL GitJournal shows,
+   `https://github.com/you/journal`, or just `you/journal`. Also available:
+   `branch` (default `main`), `notes_folder` (SD folder mirrored with the repo
+   root, default `/Journal`) and `journal_subfolder` (where Today's entries
+   go inside it; empty = top level). Comments must be on their own line (`#`
+   first), since passwords may contain `#`.
+
+4. **Sync**. The first run downloads the repository's `.md` files into
    the notes folder.
 
 How sync works:
@@ -87,7 +97,7 @@ How sync works:
 - If a note changed on **both** sides, nothing is lost: the device's version is
   kept as `<name> (InkDeck conflict).md` (here and on GitHub) next to the app's
   version.
-- Changing `github_repo` or `github_branch` makes the next sync a merge: no
+- Changing `repo_url` or `branch` makes the next sync a merge: no
   deletions, and differing files are kept as conflict copies.
 
 Notes and limits:
@@ -98,8 +108,10 @@ Notes and limits:
 - Sync needs 2.4 GHz Wi-Fi, and GitHub only (no GitLab/Gitea or SSH yet).
 - Up to ~1000 synced notes. Each note opens up to `INKDECK_DOC_CAPACITY`
   (16 KB by default); larger files open truncated.
-- `/inkdeck.txt` holds your Wi-Fi password and GitHub token in plain text on
-  the SD card. Use a token limited to the journal repository.
+- `/inkdeck.txt` holds your Wi-Fi password and token in plain text on the SD
+  card, and baked-in values can be read back out of the firmware by anyone
+  with the device and a USB cable. Use a token limited to the journal
+  repository.
 
 ## Building
 
@@ -139,11 +151,13 @@ src/
   AppState.h     screen enum + shared app state
   Document.*     the open file: fixed-capacity in-RAM text buffer + load/save
   screens.*      browser, editor, file-ops menu, name entry, bluetooth, sync screens
-  Config.*       /inkdeck.txt settings (Wi-Fi, time zone, GitHub)
+  Config.*       settings: baked-in flash-config.txt, then /inkdeck.txt
   Clock.*        NTP / manual clock, GitJournal timestamps
   Journal.*      today's entry (YYYY-MM-DD.md with front matter)
   SyncFlow.*     Sync screen work: Bluetooth off, Wi-Fi, NTP, GitHub, back on
   GitSync.*      two-way sync with a GitHub repo over the REST API
   TreeListing.*  streaming parser for GitHub's recursive tree listing
-  SyncUtil.*     pure helpers: git blob ids, base64, escaping, sync decisions
+  SyncUtil.*     pure helpers: git blob ids, base64, escaping, repo URLs, sync decisions
+tools/
+  flash_config.py  pre-build script that bakes flash-config.txt into the firmware
 ```

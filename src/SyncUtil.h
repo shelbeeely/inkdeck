@@ -43,6 +43,15 @@ uint32_t pathHash(const char* path);
 // True for the note files we sync: "*.md", no hidden path segment.
 bool isSyncedNotePath(const char* path);
 
+// --- Repository URLs ------------------------------------------------------------
+// Splits any of the usual ways to name a repo into host and "owner/name":
+//   https://github.com/owner/name(.git)   http(s)://user@host/owner/name
+//   git@github.com:owner/name.git          ssh://git@host(:port)/owner/name.git
+//   github.com/owner/name                  owner/name (host defaults to github.com)
+// Group paths (GitLab "group/sub/name") are kept whole. Returns false if no
+// owner/name part can be found.
+bool parseRepoUrl(const char* url, char* host, size_t hostsz, char* repo, size_t reposz);
+
 // --- Per-file decision ----------------------------------------------------------
 // Inputs are 40-char hex ids or nullptr when absent: the local file, the remote
 // file, and the id both sides had at the last successful sync.

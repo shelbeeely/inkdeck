@@ -217,6 +217,65 @@ bool isSyncedNotePath(const char* path) {
 }
 
 // ---------------------------------------------------------------------------
+// Repository URLs
+// ---------------------------------------------------------------------------
+bool parseRepoUrl(const char* url, char* host, size_t hostsz, char* repo, size_t reposz) {
+  while (*url == ' ') ++url;
+  const char* rest = url;
+  const char* scheme = strstr(url, "://");
+  const char* hostStart = nullptr;
+  const char* hostEnd = nullptr;
+  if (scheme) {
+    hostStart = scheme + 3;
+    const char* slash = strchr(hostStart, '/');
+    if (!slash) return false;
+    hostEnd = slash;
+    rest = slash + 1;
+  } else {
+    const char* colon = strchr(url, ':');
+    const char* slash = strchr(url, '/');
+    if (colon && (!slash || colon < slash)) {  // scp-like: git@host:owner/name
+      hostStart = url;
+      hostEnd = colon;
+      rest = colon + 1;
+    } else if (slash && memchr(url, '.', slash - url)) {  // host.tld/owner/name
+      hostStart = url;
+      hostEnd = slash;
+      rest = slash + 1;
+    }
+  }
+
+  // Host: drop "user@" and ":port".
+  if (hostStart) {
+    const char* at = static_cast<const char*>(memchr(hostStart, '@', hostEnd - hostStart));
+    if (at) hostStart = at + 1;
+    const char* port = static_cast<const char*>(memchr(hostStart, ':', hostEnd - hostStart));
+    if (port) hostEnd = port;
+    const size_t n = static_cast<size_t>(hostEnd - hostStart);
+    if (n == 0 || n >= hostsz) return false;
+    memcpy(host, hostStart, n);
+    host[n] = '\0';
+    for (char* p = host; *p; ++p) {
+      if (*p >= 'A' && *p <= 'Z') *p = static_cast<char>(*p + 32);
+    }
+  } else {
+    if (hostsz < sizeof("github.com")) return false;
+    strcpy(host, "github.com");
+  }
+
+  // Repo path: strip leading/trailing slashes and ".git".
+  while (*rest == '/') ++rest;
+  size_t n = strlen(rest);
+  while (n > 0 && (rest[n - 1] == '/' || rest[n - 1] == ' ' || rest[n - 1] == '\r')) --n;
+  if (n > 4 && strncmp(rest + n - 4, ".git", 4) == 0) n -= 4;
+  if (n == 0 || n >= reposz) return false;
+  memcpy(repo, rest, n);
+  repo[n] = '\0';
+  const char* slash = strchr(repo, '/');
+  return slash && slash != repo && slash[1] != '\0';
+}
+
+// ---------------------------------------------------------------------------
 // Decision table
 // ---------------------------------------------------------------------------
 Action decide(const char* local, const char* remote, const char* base) {

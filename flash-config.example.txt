@@ -1,0 +1,15 @@
+# Copy to flash-config.txt (git-ignored) and fill in. These values are baked
+# into the firmware on the next build/flash; /inkdeck.txt on the SD card can
+# still override any of them on the device. Lines starting with # are comments.
+
+# Your GitJournal repository, in any URL form, e.g. the SSH URL GitJournal
+# shows (git@github.com:you/journal.git) or https://github.com/you/journal.
+repo_url =
+branch = main
+# Fine-grained personal access token for this repo, Contents: Read and write.
+git_token =
+
+wifi_ssid =
+wifi_password =
+# POSIX TZ string; see the list in /inkdeck.txt, e.g. PST8PDT,M3.2.0,M11.1.0
+timezone = UTC0

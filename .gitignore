@@ -8,3 +8,6 @@
 # this file is per-developer and must not be committed.
 platformio.local.ini
 build.log
+
+# Settings baked into the firmware at build time (repo URL, token, Wi-Fi).
+flash-config.txt

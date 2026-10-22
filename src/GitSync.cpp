@@ -114,7 +114,7 @@ bool splitLine(char* line, char** sha, char** path) {
 // branch it was recorded against: pointing the notes folder at another repo
 // must look like a first sync (keep everything), not like mass deletions.
 void repoHeader(char* out, size_t outsz) {
-  snprintf(out, outsz, "# %s %s\n", g_config.githubRepo, g_config.githubBranch);
+  snprintf(out, outsz, "# %s %s\n", g_config.repo, g_config.branch);
 }
 
 bool loadBase() {
@@ -193,7 +193,7 @@ bool beginRequest(const char* uri, const char* accept = "application/vnd.github+
   g->http.setConnectTimeout(15000);
   g->http.setUserAgent("InkDeck");
   char auth[176];
-  snprintf(auth, sizeof(auth), "Bearer %s", g_config.githubToken);
+  snprintf(auth, sizeof(auth), "Bearer %s", g_config.token);
   g->http.addHeader("Authorization", auth);
   g->http.addHeader("Accept", accept);
   g->http.addHeader("X-GitHub-Api-Version", "2022-11-28");
@@ -309,7 +309,7 @@ bool fetchTree(const char* treePath, uint16_t& count) {
       count = 0;
     } else if (code == 404) {
       char msg[64];
-      snprintf(msg, sizeof(msg), "Branch '%.40s' not found", g_config.githubBranch);
+      snprintf(msg, sizeof(msg), "Branch '%.40s' not found", g_config.branch);
       fail(msg);
     } else {
       char msg[40];
@@ -606,9 +606,9 @@ Result run(Progress progress) {
   ctx.progress = progress;
   ctx.tls.setCACertBundle(x509_crt_bundle_start, x509_crt_bundle_end - x509_crt_bundle_start);
 
-  if (!syncutil::urlEscapePath(g_config.githubRepo, ctx.repoEsc, sizeof(ctx.repoEsc)) ||
-      !syncutil::urlEscapePath(g_config.githubBranch, ctx.branchEsc, sizeof(ctx.branchEsc)) ||
-      !syncutil::jsonEscape(g_config.githubBranch, ctx.branchJson, sizeof(ctx.branchJson))) {
+  if (!syncutil::urlEscapePath(g_config.repo, ctx.repoEsc, sizeof(ctx.repoEsc)) ||
+      !syncutil::urlEscapePath(g_config.branch, ctx.branchEsc, sizeof(ctx.branchEsc)) ||
+      !syncutil::jsonEscape(g_config.branch, ctx.branchJson, sizeof(ctx.branchJson))) {
     fail("Repo or branch name too long");
     g = nullptr;
     return ctx.result;
