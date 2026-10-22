@@ -1,5 +1,6 @@
 #include "Config.h"
 
+#include <Preferences.h>
 #include <SDCardManager.h>
 #include <string.h>
 
@@ -100,24 +101,68 @@ void Config::applyLine(char* line) {
   else if (strcmp(key, "git_token") == 0 || strcmp(key, "github_token") == 0) copyField(token, sizeof(token), value);
 }
 
-bool Config::load() {
-  *this = Config();
+namespace {
 
-  // Values baked in at flash time.
-  const char* p = kFlashConfig;
+constexpr const char* kPrefsNs = "inkcfg";
+constexpr const char* kPrefsKey = "cfg";
+constexpr size_t kStoreMax = 2048;
+
+// Calls fn(line) for each '\n'-separated line of `text` (lines are copied into
+// a writable buffer first).
+template <typename Fn>
+void forEachLine(const char* text, Fn fn) {
   char line[256];
+  const char* p = text;
   while (*p) {
     const char* nl = strchr(p, '\n');
     const size_t len = nl ? static_cast<size_t>(nl - p) : strlen(p);
     const size_t n = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
     memcpy(line, p, n);
     line[n] = '\0';
-    applyLine(line);
+    fn(line);
     p += len + (nl ? 1 : 0);
   }
+}
+
+// Key of a "key = value" line, trimmed, into `out` (empty for comments etc).
+void lineKey(const char* line, char* out, size_t outsz) {
+  out[0] = '\0';
+  const char* first = line + strspn(line, " \t");
+  const char* eq = strchr(first, '=');
+  if (*first == '#' || !eq) return;
+  size_t n = static_cast<size_t>(eq - first);
+  while (n > 0 && (first[n - 1] == ' ' || first[n - 1] == '\t')) --n;
+  if (n >= outsz) return;
+  memcpy(out, first, n);
+  out[n] = '\0';
+}
+
+bool lineHasValue(const char* line) {
+  const char* eq = strchr(line, '=');
+  return eq && eq[1 + strspn(eq + 1, " \t\r")] != '\0';
+}
+
+String readStored() {
+  Preferences prefs;
+  if (!prefs.begin(kPrefsNs, true)) return String();
+  String s = prefs.getString(kPrefsKey, "");
+  prefs.end();
+  return s;
+}
+
+}  // namespace
+
+bool Config::load() {
+  *this = Config();
+
+  // Values baked in at flash time, then those saved on the device.
+  forEachLine(kFlashConfig, [this](char* line) { applyLine(line); });
+  const String stored = readStored();
+  forEachLine(stored.c_str(), [this](char* line) { applyLine(line); });
 
   // The SD card file overrides them.
-  FsFile f = SdMan.open(kPath, O_RDONLY);
+  char line[256];
+  FsFile f = SdMan.ready() ? SdMan.open(kPath, O_RDONLY) : FsFile();
   const bool found = static_cast<bool>(f);
   while (f && f.available()) {
     int n = f.fgets(line, sizeof(line));
@@ -142,4 +187,65 @@ bool Config::writeTemplateIfMissing() const {
   f.write(reinterpret_cast<const uint8_t*>(kTemplate), sizeof(kTemplate) - 1);
   f.close();
   return true;
+}
+
+bool Config::storeOnDevice(const char* lines) {
+  const String stored = readStored();
+  String merged;
+  // Keep stored lines whose key isn't being set now...
+  forEachLine(stored.c_str(), [&](char* line) {
+    char key[32];
+    lineKey(line, key, sizeof(key));
+    if (!key[0]) return;
+    bool replaced = false;
+    forEachLine(lines, [&](char* incoming) {
+      char k[32];
+      lineKey(incoming, k, sizeof(k));
+      if (strcmp(k, key) == 0) replaced = true;
+    });
+    if (!replaced) {
+      merged += line;
+      merged += '\n';
+    }
+  });
+  // ...then add the new ones (an empty value just drops the key).
+  forEachLine(lines, [&](char* line) {
+    char key[32];
+    lineKey(line, key, sizeof(key));
+    if (key[0] && lineHasValue(line)) {
+      merged += line;
+      merged += '\n';
+    }
+  });
+  if (merged.length() > kStoreMax) return false;
+
+  Preferences prefs;
+  if (!prefs.begin(kPrefsNs, false)) return false;
+  bool ok = true;
+  if (merged.length() == 0) {
+    prefs.remove(kPrefsKey);
+  } else {
+    ok = prefs.putString(kPrefsKey, merged) == merged.length();
+  }
+  prefs.end();
+  load();
+  return ok;
+}
+
+bool Config::sdOverrides(const char* key) const {
+  if (!SdMan.ready()) return false;
+  FsFile f = SdMan.open(kPath, O_RDONLY);
+  if (!f) return false;
+  bool found = false;
+  char line[256];
+  while (!found && f.available()) {
+    int n = f.fgets(line, sizeof(line));
+    if (n <= 0) break;
+    if (line[n - 1] == '\n') line[n - 1] = '\0';
+    char k[32];
+    lineKey(line, k, sizeof(k));
+    found = strcmp(k, key) == 0 && lineHasValue(line);
+  }
+  f.close();
+  return found;
 }

@@ -25,6 +25,7 @@ void sleepScreen(ScreenT& s, void* user);
 void confirmDeleteScreen(ScreenT& s, void* user);
 void confirmDiscardScreen(ScreenT& s, void* user);
 void syncScreen(ScreenT& s, void* user);
+void setupScreen(ScreenT& s, void* user);
 
 // --- Input (called from the main loop) ---
 void handleKey(const freeink::KeyEvent& ev);

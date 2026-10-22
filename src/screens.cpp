@@ -8,6 +8,7 @@
 #include "Clock.h"
 #include "Config.h"
 #include "Journal.h"
+#include "SetupFlow.h"
 #include "SyncFlow.h"
 
 using namespace freeink::ui;
@@ -21,9 +22,9 @@ static constexpr uint8_t kModShift = 0x02 | 0x20;  // L/R Shift
 static constexpr uint8_t kModAlt = 0x04 | 0x40;    // L/R Alt / Option
 static constexpr uint8_t kModGui = 0x08 | 0x80;    // L/R Cmd / Win / GUI
 
-static const char* kMenuItems[] = {"Today's journal", "Sync",        "New file",      "New folder",
-                                   "Rename",          "Delete",      "Bluetooth",     "Orientation",
-                                   "Set date/time",   "Forget HID devices"};
+static const char* kMenuItems[] = {"Today's journal", "Sync",          "New file",      "New folder",
+                                   "Rename",          "Delete",        "Bluetooth",     "Orientation",
+                                   "Set date/time",   "Setup over Wi-Fi", "Forget HID devices"};
 enum MenuItem : int {
   kMenuToday,
   kMenuSync,
@@ -34,6 +35,7 @@ enum MenuItem : int {
   kMenuBluetooth,
   kMenuOrientation,
   kMenuSetClock,
+  kMenuSetup,
   kMenuForget,
 };
 static constexpr int kMenuCount = sizeof(kMenuItems) / sizeof(kMenuItems[0]);
@@ -927,6 +929,13 @@ static void uiConfirm() {
           g_state.pendingToday = false;
           startClockEntry();
           break;
+        case kMenuSetup:
+          if (g_config.hasWifi()) {
+            startSetup(g_config.wifiSsid, g_config.wifiPassword, false);
+          } else {
+            showToast("No Wi-Fi yet: use the web flasher");
+          }
+          break;
         case kMenuForget:
           forgetAll();
           break;
@@ -951,6 +960,9 @@ static void uiConfirm() {
       break;
     case AppScreen::Sync:
       leaveSync();
+      break;
+    case AppScreen::Setup:
+      if (g_state.setupSaved) endSetup(true);
       break;
   }
 }
@@ -988,6 +1000,9 @@ static void uiBack() {
       break;
     case AppScreen::Sync:
       leaveSync();
+      break;
+    case AppScreen::Setup:
+      endSetup(false);
       break;
   }
 }
@@ -1307,4 +1322,55 @@ void syncScreen(ScreenT& s, void*) {
     if (r.bottom() > body.bottom()) break;
     s.frame().target().text(r, st.syncLines[i], ts);
   }
+}
+
+void setupScreen(ScreenT& s, void*) {
+  AppState& st = g_state;
+  s.header("Setup", nullptr, "");
+  footer4(s, "Back", st.setupSaved ? "OK" : "", "", "");
+
+  Rect body = s.body();
+  auto& target = s.frame().target();
+  TextStyle ts = g_theme.bodyText;
+  ts.align = TextAlign::Center;
+  ts.maxLines = 2;
+  TextStyle small = g_theme.smallText;
+  small.align = TextAlign::Center;
+  small.maxLines = 2;
+
+  int16_t y = static_cast<int16_t>(body.y + 16);
+  target.text(Rect{body.x, y, body.width, 48}, st.setupStatus, ts);
+  y = static_cast<int16_t>(y + 52);
+
+  if (st.setupUrl[0]) {
+    TextStyle url = g_theme.titleText;
+    url.align = TextAlign::Center;
+    url.maxLines = 1;
+    target.text(Rect{body.x, y, body.width, 36}, st.setupUrl, url);
+    y = static_cast<int16_t>(y + 44);
+
+    // QR code of the address, with a quiet zone, as large as fits.
+    const int n = setupQrSize();
+    if (n > 0) {
+      const int16_t room = static_cast<int16_t>(body.bottom() - y - 56);
+      const int16_t maxW = static_cast<int16_t>(body.width - 32);
+      const int16_t avail = room < maxW ? room : maxW;
+      const int16_t scale = static_cast<int16_t>(avail / (n + 8));
+      if (scale >= 2) {
+        const int16_t side = static_cast<int16_t>(scale * (n + 8));
+        const int16_t x0 = static_cast<int16_t>(body.x + (body.width - side) / 2);
+        const int16_t qx = static_cast<int16_t>(x0 + 4 * scale);
+        const int16_t qy = static_cast<int16_t>(y + 4 * scale);
+        for (int my = 0; my < n; ++my) {
+          for (int mx = 0; mx < n; ++mx) {
+            if (!setupQrModule(mx, my)) continue;
+            target.fill(Rect{static_cast<int16_t>(qx + mx * scale), static_cast<int16_t>(qy + my * scale), scale, scale},
+                        Paint::solid(Color::Black));
+          }
+        }
+        y = static_cast<int16_t>(y + side + 8);
+      }
+    }
+  }
+  target.text(Rect{body.x, y, body.width, 48}, st.setupDetail, small);
 }

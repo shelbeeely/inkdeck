@@ -1,11 +1,14 @@
 #pragma once
 
 // User configuration: Wi-Fi credentials, the time zone, and the GitJournal
-// repository used by Sync. Two layers, same "key = value" format:
+// repository used by Sync. Layers, all in the same "key = value" format, each
+// overriding the one before:
 //   1. flash-config.txt in the project, baked into the firmware at build time
-//      (tools/flash_config.py), so a freshly flashed device is ready to Sync;
-//   2. /inkdeck.txt on the SD card, whose keys override the baked ones. A .txt
-//      so it shows up in the browser and can be edited on the device itself.
+//      (tools/flash_config.py);
+//   2. settings saved on the device (NVS) by the web flasher's Wi-Fi step and
+//      the Setup page (storeOnDevice);
+//   3. /inkdeck.txt on the SD card. A .txt so it shows up in the browser and
+//      can be edited on the device itself.
 
 #include <Arduino.h>
 
@@ -23,9 +26,15 @@ struct Config {
   char branch[64] = "main";
   char token[160] = {0};
 
-  // Resets to the built-in defaults plus the values baked in at flash time,
-  // then applies kPath on top. Returns false if kPath doesn't exist.
+  // Resets to the built-in defaults, then applies each layer above. Returns
+  // false if kPath doesn't exist.
   bool load();
+  // Merges "key = value" lines into the settings stored on the device (an
+  // empty value removes that key), then reloads. Returns false on NVS failure.
+  bool storeOnDevice(const char* lines);
+  // True if kPath sets `key` to a non-empty value (it then overrides the
+  // device-stored one).
+  bool sdOverrides(const char* key) const;
   // Writes a commented template to kPath if no file exists. Returns true if one
   // was created.
   bool writeTemplateIfMissing() const;

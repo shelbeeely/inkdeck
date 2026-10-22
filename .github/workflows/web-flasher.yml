@@ -1,0 +1,65 @@
+# Builds InkDeck and publishes the browser installer (web/ + merged image +
+# manifest) to GitHub Pages. Enable it once under Settings > Pages > Source:
+# "GitHub Actions". No settings are baked in: flash-config.txt is git-ignored,
+# and tools/build_web_flasher.py refuses builds that carry any.
+name: Web flasher
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0  # for the version (git describe)
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: |
+          echo "INKDECK_VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
+          export INKDECK_VERSION="$(git describe --tags --always)"
+          pio run -e default
+
+      - name: Assemble web flasher
+        run: python tools/build_web_flasher.py --out _site
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

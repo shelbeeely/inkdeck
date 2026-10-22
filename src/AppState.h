@@ -22,6 +22,7 @@ enum class AppScreen : uint8_t {
   ConfirmDelete,
   ConfirmDiscard,
   Sync,
+  Setup,
 };
 
 enum class NamePurpose : uint8_t {
@@ -83,6 +84,12 @@ struct AppState {
   uint8_t syncLineCount = 0;
   bool syncDone = false;
   bool pendingToday = false;  // open today's journal once the clock is set
+
+  // --- Setup (web page over Wi-Fi) ---
+  char setupStatus[64] = {0};
+  char setupDetail[64] = {0};
+  char setupUrl[48] = {0};
+  bool setupSaved = false;
 
   // --- Chrome ---
   char statusLabel[40] = {0};

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InkDeck Installer</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="Install InkDeck on an Xteink X3/X4 from your browser, then connect it to Wi-Fi and your GitJournal repository.">
+<script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1d1c1a;
+    --muted: #5d5a54;
+    --line: #dcd8cf;
+    --accent: #1d1c1a;
+    --accent-text: #ffffff;
+    --note: #fbf1d9;
+    --note-line: #e8d29c;
+    --link: #0b57d0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151514;
+      --surface: #1f1e1c;
+      --text: #ecebe7;
+      --muted: #a9a59c;
+      --line: #36342f;
+      --accent: #ecebe7;
+      --accent-text: #151514;
+      --note: #2e2717;
+      --note-line: #5b4b22;
+      --link: #8ab4f8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151514;
+    --surface: #1f1e1c;
+    --text: #ecebe7;
+    --muted: #a9a59c;
+    --line: #36342f;
+    --accent: #ecebe7;
+    --accent-text: #151514;
+    --note: #2e2717;
+    --note-line: #5b4b22;
+    --link: #8ab4f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.1rem; margin: 32px 0 8px; }
+  p { margin: 0 0 12px; }
+  .lede { color: var(--muted); font-size: 1.05rem; margin-bottom: 28px; }
+  a { color: var(--link); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .install { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .install button {
+    font: inherit;
+    font-weight: 650;
+    padding: 12px 22px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
+  }
+  .install button:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+  .muted { color: var(--muted); font-size: 0.93rem; }
+  ol { padding-left: 1.3em; margin: 0; }
+  ol li { margin: 0 0 12px; }
+  ol li:last-child { margin-bottom: 0; }
+  .note {
+    background: var(--note);
+    border: 1px solid var(--note-line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 16px;
+    font-size: 0.95rem;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Install InkDeck</h1>
+  <p class="lede">Markdown writing and a daily journal for the Xteink X3/X4, synced with
+    <a href="https://github.com/gitjournal/gitjournal">GitJournal</a>. Install it from this page, then
+    set up Wi-Fi and your journal repository without touching a config file.</p>
+
+  <section class="card install" aria-label="Install">
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate">Connect and install</button>
+      <span slot="unsupported">Your browser can't talk to USB devices. Use Chrome or Edge on a computer
+        (not Safari, Firefox, or a phone).</span>
+      <span slot="not-allowed">This page has to be opened over HTTPS (or from localhost) to reach USB devices.</span>
+    </esp-web-install-button>
+    <p class="muted">Plug the X4 into this computer with a USB-C data cable and wake it, then press
+      the button and pick the port named <code>USB JTAG/serial debug unit</code>.</p>
+  </section>
+
+  <h2>What happens</h2>
+  <div class="card">
+    <ol>
+      <li><strong>Install.</strong> The installer writes InkDeck to the X4 (about a minute). Choose
+        <em>erase</em> for a clean install; it clears saved Wi-Fi and Bluetooth pairings, not your SD card.</li>
+      <li><strong>Wi-Fi.</strong> When the X4 restarts, the installer asks for your Wi-Fi network and
+        password and sends them over the USB cable. Use a 2.4&nbsp;GHz network.</li>
+      <li><strong>Your journal.</strong> Choose <em>Visit Device</em>. A setup page opens from the X4
+        itself (its address and a QR code are also on its screen). Paste the repository URL from
+        GitJournal (<em>Settings &rarr; Git Remote Settings &rarr; Git Host</em>) and an access token,
+        and check the time zone. Then press <em>OK</em> on the X4 to sync.</li>
+    </ol>
+    <div class="note">The X4 turns Bluetooth off while it's on Wi-Fi, so a paired keyboard reconnects
+      once setup or sync finishes. To change settings later, use <em>Menu &rarr; Setup over Wi-Fi</em>
+      on the device.</div>
+  </div>
+
+  <h2>Access token</h2>
+  <div class="card">
+    <p>GitJournal signs in with an SSH key; the X4 uses an access token instead. On GitHub,
+      <a href="https://github.com/settings/personal-access-tokens/new">create a fine-grained token</a>
+      for your journal repository only, with <strong>Contents: Read and write</strong>.</p>
+    <p class="muted">GitHub is the only provider InkDeck syncs with so far. The token and Wi-Fi password
+      are stored on the X4 and sent only to GitHub and your network.</p>
+  </div>
+
+  <h2>If it doesn't connect</h2>
+  <div class="card">
+    <ol>
+      <li>Check the cable carries data (some USB-C cables only charge).</li>
+      <li>Close any other program using the port (Arduino IDE, PlatformIO monitor), then try again.</li>
+      <li>Unplug the X4, plug it back in, wake it, and press <em>Connect and install</em> again.</li>
+    </ol>
+  </div>
+</main>
+</body>
+</html>

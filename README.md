@@ -42,6 +42,37 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 - **Set date/time** (menu) — set the clock by hand (`YYYY-MM-DD HH:MM`) when
   there's no Wi-Fi.
 
+## Installing from the browser
+
+The web flasher installs InkDeck from Chrome or Edge on a computer, with no
+toolchain, then sets everything up without a config file:
+
+1. **Install**: plug the X4 in over USB-C, open the flasher page, press
+   *Connect and install* and pick `USB JTAG/serial debug unit`.
+2. **Wi-Fi**: when the X4 restarts, the flasher asks for your Wi-Fi network
+   and password and sends them over USB ([Improv Serial](https://www.improv-wifi.com/serial/)).
+3. **Journal**: choose *Visit Device*. The X4 serves a setup page on your
+   network (its address and a QR code are also on its screen) where you paste
+   the repository URL from GitJournal and an access token, and confirm the
+   time zone (pre-selected from your browser). Press *OK* on the X4 to sync.
+
+Later changes: *Menu &rarr; Setup over Wi-Fi* brings the same page back.
+Settings entered this way are stored on the device (NVS). `/inkdeck.txt` on
+the SD card still overrides them, and the page warns when it does.
+
+**Publishing the flasher**: `.github/workflows/web-flasher.yml` builds the
+firmware and deploys the page to GitHub Pages on every push to `master`.
+Turn it on once under *Settings &rarr; Pages &rarr; Source: GitHub Actions*.
+**Running it locally**:
+
+```sh
+pio run && python3 tools/build_web_flasher.py
+python3 -m http.server -d .pio/web-flasher 8000   # open http://localhost:8000 in Chrome
+```
+
+The packaging step refuses builds with `flash-config.txt` settings baked in,
+so a published flasher never carries your token or Wi-Fi password.
+
 ## Journaling with GitJournal
 
 [GitJournal](https://github.com/gitjournal/gitjournal) keeps notes as Markdown
@@ -54,9 +85,12 @@ app (and vice versa).
    entries from the phone are named like InkDeck's (`2026-10-22.md`).
 2. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new)
    limited to that repository, with **Contents: Read and write**.
-3. Give InkDeck the repo, token and Wi-Fi, either way (or both):
+3. Give InkDeck the repo, token and Wi-Fi:
 
-   - **When flashing** (easiest): copy `flash-config.example.txt` to
+   - **With the web flasher** (easiest): see
+     [Installing from the browser](#installing-from-the-browser).
+
+   - **When building it yourself**: copy `flash-config.example.txt` to
      `flash-config.txt` (git-ignored), fill it in, then `pio run -t upload`.
      The build prints what it baked in (secrets show as `(set)`):
 
@@ -158,6 +192,14 @@ src/
   GitSync.*      two-way sync with a GitHub repo over the REST API
   TreeListing.*  streaming parser for GitHub's recursive tree listing
   SyncUtil.*     pure helpers: git blob ids, base64, escaping, repo URLs, sync decisions
+  Net.*          Wi-Fi sessions (Bluetooth paused while Wi-Fi is up)
+  Improv.*       Improv Serial: Wi-Fi credentials from the web flasher over USB
+  SetupFlow.*    Setup screen: join Wi-Fi, show the page address + QR code
+  SetupServer.*  the setup web page (repo URL, token, time zone, folders)
 tools/
-  flash_config.py  pre-build script that bakes flash-config.txt into the firmware
+  flash_config.py       pre-build: bakes flash-config.txt + the version into the firmware
+  merge_bin.py          post-build: one image for the web flasher (inkdeck-full.bin)
+  build_web_flasher.py  assembles web/ + image + manifest.json into a site
+web/
+  index.html     the browser installer page (ESP Web Tools)
 ```

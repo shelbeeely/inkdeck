@@ -1,7 +1,5 @@
 #include "SyncFlow.h"
 
-#include <BleKeyboardHost.h>
-#include <WiFi.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -9,11 +7,11 @@
 #include "Clock.h"
 #include "Config.h"
 #include "GitSync.h"
+#include "Net.h"
 #include "screens.h"
 
 namespace {
 
-constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr uint32_t kNtpTimeoutMs = 10000;
 constexpr uint32_t kMinPaintGapMs = 1500;  // e-ink: don't repaint for every file
 uint32_t g_lastPaint = 0;
@@ -43,24 +41,6 @@ void say(const char* line) {
 void progress(const char* line) {
   addLine(line);
   paint(false);
-}
-
-bool joinWifi() {
-  char msg[64];
-  snprintf(msg, sizeof(msg), "Joining %s...", g_config.wifiSsid);
-  say(msg);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(g_config.wifiSsid, g_config.wifiPassword);
-  const uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < kWifiTimeoutMs) delay(100);
-  if (WiFi.status() == WL_CONNECTED) return true;
-  say("Wi-Fi failed. Check name/password");
-  return false;
-}
-
-void wifiOff() {
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
 }
 
 void syncGit() {
@@ -115,13 +95,15 @@ void runSync(bool withGit) {
     return;
   }
 
-  say("Pausing Bluetooth...");
-  BleHid.end(2000);  // frees the NimBLE heap for Wi-Fi + TLS
-
-  if (joinWifi()) {
+  char msg[64];
+  snprintf(msg, sizeof(msg), "Pausing Bluetooth, joining %s...", g_config.wifiSsid);
+  say(msg);
+  if (!Net::up(g_config.wifiSsid, g_config.wifiPassword)) {
+    say("Wi-Fi failed. Check name/password");
+  } else {
     say("Setting the clock...");
     if (Clock::syncNtp(kNtpTimeoutMs)) {
-      char date[16], time[8], msg[48];
+      char date[16], time[8];
       Clock::formatDate(date, sizeof(date));
       Clock::formatTime(time, sizeof(time));
       snprintf(msg, sizeof(msg), "Clock set: %s %s", date, time);
@@ -131,13 +113,7 @@ void runSync(bool withGit) {
     }
     if (withGit) syncGit();
   }
-  wifiOff();
-
-  if (!BleHid.begin("InkDeck")) {
-    BleHid.end(2000);  // finish a slow teardown, then retry
-    BleHid.begin("InkDeck");
-  }
-  refreshStatusLabel();
+  Net::down();
   st.syncDone = true;
   paint(true);
 }

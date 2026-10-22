@@ -24,7 +24,9 @@
 #include "AppSettings.h"
 #include "Clock.h"
 #include "Config.h"
+#include "Improv.h"
 #include "InkDeckIcons.h"
+#include "SetupFlow.h"
 #include "screens.h"
 
 // Sync runs TLS handshakes (mbedTLS) on the loop task; the default 8 KB stack
@@ -110,6 +112,8 @@ App::ScreenFn fnFor(AppScreen s) {
       return confirmDiscardScreen;
     case AppScreen::Sync:
       return syncScreen;
+    case AppScreen::Setup:
+      return setupScreen;
   }
   return browserScreen;
 }
@@ -282,6 +286,8 @@ bool prepareSleep() {
 // ---------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
+  // Answer the web flasher's Wi-Fi step (Improv) while the rest boots.
+  Improv::begin(false);
   delay(50);
 
   const bool isX3 = freeink::selectXteinkDevice();
@@ -310,7 +316,8 @@ void setup() {
   pushRefresh();
 
   const bool sdOk = SdMan.begin();
-  if (sdOk) g_config.load();
+  g_config.load();  // baked-in + device-stored settings, plus /inkdeck.txt if the SD card is up
+  Improv::setProvisioned(g_config.hasWifi());
   Clock::applyTimezone(g_config.timezone);  // the TZ env var doesn't survive deep sleep
   BleHid.begin("InkDeck");
   refreshStatusLabel();
@@ -332,6 +339,10 @@ void setup() {
 }
 
 void loop() {
+  char improvSsid[33], improvPassword[65];
+  if (Improv::takeWifiRequest(improvSsid, improvPassword)) startSetup(improvSsid, improvPassword, true);
+  if (g_state.screen == AppScreen::Setup) setupLoop();
+
   BleHid.poll();
   char bleFailure[48];
   if (BleHid.takeConnectFailure(bleFailure, sizeof(bleFailure))) {
