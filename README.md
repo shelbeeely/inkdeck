@@ -35,10 +35,14 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 ## Building
 
 This project consumes the FreeInk SDK via PlatformIO `symlink://` lib deps,
-exactly like the `escape-hatch` example. For local development the committed
-`platformio.local.ini` overrides the lib paths with absolute symlinks to a
-working copy of the SDK at `/Users/jmitch/GitHub/freeink-sdk`, so SDK changes
-iterate without committing anything.
+exactly like the `escape-hatch` example. The SDK is pinned as the `freeink-sdk/`
+git submodule, so clone with submodules:
+
+```sh
+git clone --recurse-submodules <inkdeck-url>
+# or, in an existing checkout:
+git submodule update --init freeink-sdk
+```
 
 ```sh
 pio run                 # build (env: default — X3 + X4 in one binary)
@@ -46,10 +50,17 @@ pio run -t upload       # flash over USB
 pio device monitor      # serial @ 115200
 ```
 
-The committed `platformio.ini` references the SDK as a `freeink-sdk/` checkout.
-The `BleKeyboardHost` library and the FreeInkUI `textArea` component live in the
-SDK working copy; once those are upstreamed, add the SDK as a submodule and the
-committed config builds without the local override.
+To bump the SDK, check out the new commit in the submodule and commit the
+pointer:
+
+```sh
+git -C freeink-sdk fetch origin && git -C freeink-sdk checkout origin/main
+git add freeink-sdk && git commit -m "Bump freeink-sdk"
+```
+
+For SDK development, an untracked `platformio.local.ini` can override the
+`lib_deps` with absolute symlinks to a separate SDK working copy, so SDK changes
+iterate without touching the submodule.
 
 ## Layout
 
