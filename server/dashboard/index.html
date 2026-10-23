@@ -61,6 +61,22 @@
   .timeline span { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; min-width: 2px; }
   .err { color: var(--bad); }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  .companion { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); margin-bottom: 14px; }
+  .pet { display: flex; gap: 16px; align-items: center; }
+  .face { font: 650 1.9rem/1 ui-monospace, "SF Mono", Menlo, monospace; min-width: 5.5ch; text-align: center; padding: 18px 8px;
+          border-radius: 50%; background: var(--heat-0); white-space: nowrap; }
+  .says { font-style: italic; margin: 2px 0 8px; }
+  .meter { display: grid; grid-template-columns: 80px 1fr 34px; gap: 8px; align-items: center; font-size: 0.85rem; color: var(--muted); }
+  .bar { height: 8px; border-radius: 4px; background: var(--heat-0); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .bar.warn i { background: var(--accent-2); }
+  .level { font-size: 1.6rem; font-weight: 650; }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .badge { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.85rem; }
+  .badge b { display: block; font-size: 0.92rem; }
+  .badge.locked { opacity: 0.45; }
+  .badge.on { border-color: var(--accent); }
+  .wx { font-size: 0.85rem; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -70,7 +86,14 @@
     <span class="muted" id="updated">Loading…</span>
   </header>
 
+  <div class="card companion" id="companion" hidden></div>
+
   <div class="grid tiles" id="tiles"></div>
+
+  <div class="card section" id="badges-card" hidden>
+    <h2 id="badges-title">Achievements</h2>
+    <div class="badges" id="badges"></div>
+  </div>
 
   <div class="card section">
     <h2>Writing calendar</h2>
@@ -126,9 +149,10 @@ function dur(s) {
 }
 const avg = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 
-function tiles(t) {
+function tiles(t, companion) {
   const items = [
-    [t.streak + (t.streak === 1 ? " day" : " days"), `Streak (best ${t.best_streak})`],
+    // With the companion, its streak (where rest days count) is shown instead.
+    ...(companion ? [] : [[t.streak + (t.streak === 1 ? " day" : " days"), `Streak (best ${t.best_streak})`]]),
     [num(t.today.words), `Words today · ${dur(t.today.active_s)}`],
     [num(t.week.words), `This week · ${dur(t.week.active_s)}`],
     [num(t.month.words), `This month · ${dur(t.month.active_s)}`],
@@ -259,9 +283,60 @@ function places(list) {
     list.slice(0, 8).map((p) => `<tr><td>${esc(p.place)}</td><td class=n>${p.sessions}</td><td class=n>${num(p.words)}</td></tr>`).join("");
 }
 
-function dayView(sessions, iso) {
+function meter(label, v) {
+  return `<div class="meter"><span>${esc(label)}</span><div class="bar${v < 30 ? " warn" : ""}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div><span>${v}</span></div>`;
+}
+
+function companionView(c) {
+  if (!c) return;
+  const p = c.pet;
+  const stage = p.state === "egg" ? `Egg · hatches after ${p.hatch_days} writing days (${p.eggs_writing_days} so far)`
+    : p.state === "asleep" ? "Hibernating · write on 3 days to wake it"
+    : p.state === "gone" ? "A new egg arrives with your next entry"
+    : `${p.stage}${p.form_label ? " · " + p.form_label : ""} · ${p.age_days} days old`;
+  const span = Math.max(1, c.level_next - c.level_start);
+  const goal = Math.min(100, Math.round(c.today_words * 100 / Math.max(1, c.goal)));
+  $("companion").hidden = false;
+  $("companion").innerHTML = `
+    <div class="pet"><div class="face" aria-hidden="true">${esc(p.face)}</div><div style="flex:1;min-width:0">
+      <h2 style="margin:0">${esc(p.name)} <span class="muted">· ${esc(p.mood)}</span></h2>
+      <div class="muted">${esc(stage)}</div>
+      <p class="says">“${esc(p.says)}”</p>
+      ${p.state === "alive" ? meter("Fullness", p.fullness) + meter("Happiness", p.happiness) + meter("Health", p.health) : ""}
+    </div></div>
+    <div>
+      <div class="level">Level ${c.level}</div>
+      <div class="muted">${num(c.xp)} XP · ${num(c.level_next - c.xp)} to level ${c.level + 1}</div>
+      <div class="bar" style="margin:6px 0 14px"><i style="width:${((c.xp - c.level_start) * 100 / span).toFixed(1)}%"></i></div>
+      <div class="habits" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div><b>${c.streak}</b><span class="muted">Day streak (best ${c.best_streak}; rest days count)</span></div>
+        <div><b>${num(c.today_words)} / ${num(c.goal)}</b><span class="muted">Today's goal${goal >= 100 ? " ✓" : ""}</span></div>
+        <div><b>${c.goal_streak}</b><span class="muted">Goal days in a row</span></div>
+        <div><b>${c.rest_days_left}</b><span class="muted">Rest days left this week</span></div>
+      </div>
+    </div>`;
+  $("badges-card").hidden = false;
+  $("badges-title").textContent = `Achievements (${c.unlocked}/${c.achievements.length})`;
+  $("badges").innerHTML = c.achievements.map((a) =>
+    `<div class="badge ${a.unlocked ? "on" : "locked"}" title="${esc(a.description)}"><b>${esc(a.title)}</b>` +
+    `<span class="muted">${a.unlocked ? `Unlocked <span style="white-space:nowrap">${esc(a.unlocked)}</span>` : esc(a.description)}</span></div>`).join("");
+}
+
+function weatherText(w) {
+  if (!w) return "";
+  const bits = [w.condition, w.temp_c != null ? `${w.temp_c}°C` : "", w.aqi != null ? `AQI ${w.aqi}` : "", w.light];
+  return bits.filter(Boolean).map(esc).join(" · ");
+}
+
+function dayView(sessions, iso, extra) {
   const list = sessions.filter((s) => s.start.slice(0, 10) === iso);
-  if (!list.length) { $("day-sessions").innerHTML = `<p class="empty">Nothing written on ${esc(iso)}.</p>`; return; }
+  const d = (extra.weather_days || {})[iso];
+  const head = d ? `<p class="wx">${esc(d.weather || "")} · ${d.temp_min_c}–${d.temp_max_c}°C · sunrise ${esc(d.sunrise)} · sunset ${esc(d.sunset)} · ${esc(d.moon || "")}</p>` : "";
+  const checks = (extra.checkins || []).filter((c) => c.time.slice(0, 10) === iso).map((c) =>
+    `<div class="session"><b>${esc(c.time.slice(11, 16))}</b> <span class="muted">${esc(c.kind || "check-in")}</span><div class="muted">` +
+    Object.entries(c).filter(([k]) => !["time", "kind", "file"].includes(k)).map(([k, v]) => `${esc(k)}: ${esc(String(v))}`).join(" · ") +
+    `</div></div>`).join("");
+  if (!list.length) { $("day-sessions").innerHTML = head + (checks || `<p class="empty">Nothing written on ${esc(iso)}.</p>`); return; }
   const secs = (t) => { const [h, m, s] = t.split(":").map(Number); return h * 3600 + m * 60 + s; };
   $("day-sessions").innerHTML = list.map((s) => {
     const st = secs(s.start.slice(11, 19)), en = Math.max(st + 60, secs(s.end.slice(11, 19)));
@@ -273,8 +348,10 @@ function dayView(sessions, iso) {
     }).join("");
     return `<div class="session"><b>${esc(s.start.slice(11, 16))}</b> <span class="muted">${esc(s.file)}${s.place ? " · " + esc(s.place) : ""}</span>
       <div class="muted">${num(s.words)} words · ${dur(s.active_s)} typing${s.wpm ? " · " + s.wpm + " wpm" : ""}${s.parts.length ? " · " + s.parts.length + " paragraphs" : ""}</div>
+      ${s.weather ? `<div class="wx">${weatherText(s.weather)}</div>` : ""}
       ${s.parts.length ? `<div class="timeline">${bars}</div>` : ""}</div>`;
-  }).join("");
+  }).join("") + checks;
+  if (head) $("day-sessions").insertAdjacentHTML("afterbegin", head);
 }
 
 function battery(points) {
@@ -320,7 +397,8 @@ async function load() {
   charts.forEach((c) => c.destroy()); charts = [];
   const pulled = data.pulled ? new Date(data.pulled * 1000) : new Date(data.generated);
   $("updated").textContent = `Updated ${pulled.toLocaleString()}`;
-  tiles(data.totals);
+  companionView(data.companion);
+  tiles(data.totals, data.companion);
   calendar(data.days, data.today);
   daily(data.days, data.today);
   wpm(data.sessions);
@@ -332,8 +410,8 @@ async function load() {
   files(data.files);
   const last = data.sessions.length ? data.sessions[data.sessions.length - 1].start.slice(0, 10) : data.today;
   $("day").value = last;
-  $("day").onchange = () => dayView(data.sessions, $("day").value);
-  dayView(data.sessions, last);
+  $("day").onchange = () => dayView(data.sessions, $("day").value, data);
+  dayView(data.sessions, last, data);
 }
 load();
 </script>

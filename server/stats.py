@@ -84,6 +84,8 @@ def journal_sessions(root: Path) -> list[dict]:
                 "place": None,
                 "lat": None,
                 "lon": None,
+                "place_tag": s.get("place_tag") or None,
+                "weather": s.get("weather") if isinstance(s.get("weather"), dict) else None,
             }
             loc = s.get("location")
             if isinstance(loc, dict) and "lat" in loc and "lon" in loc:
@@ -94,6 +96,32 @@ def journal_sessions(root: Path) -> list[dict]:
                                           "active_s": _int(p.get("active_s")), "words": _int(p.get("words"))})
             sessions.append(item)
     return sessions
+
+
+def journal_extras(root: Path) -> tuple[list[dict], dict]:
+    """Check-ins (front matter `checkins:` items) and per-day weather (`day:` blocks)."""
+    checkins, days = [], {}
+    for path in sorted(root.rglob("*.md")):
+        rel = path.relative_to(root)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if "checkins:" not in text and "\nday:" not in text:
+            continue
+        fm = front_matter(text)
+        for c in fm.get("checkins") or []:
+            if isinstance(c, dict) and parse_time(c.get("time")):
+                checkins.append({**{k: v for k, v in c.items() if k != "time"},
+                                 "time": parse_time(c.get("time")), "file": rel.as_posix()})
+        day = fm.get("day")
+        created = parse_time(fm.get("created"))
+        if isinstance(day, dict) and created:
+            days[created.date().isoformat()] = day
+    checkins.sort(key=lambda c: c["time"])
+    return checkins, days
 
 
 def usage_events(root: Path) -> list[dict]:
@@ -136,6 +164,7 @@ def compute(root: Path, today: dt.date | None = None) -> dict:
     root = Path(root)
     journal = journal_sessions(root)
     events = usage_events(root)
+    checkins, weather_days = journal_extras(root)
 
     # Sessions: journal records from front matter, other notes from the log,
     # plus logged journal sessions for entries that have no record.
@@ -153,7 +182,7 @@ def compute(root: Path, today: dt.date | None = None) -> dict:
             "kind": e.get("detail") or "note",
             **{k: e.get(k, 0) for k in ("active_s", "keys", "words", "wpm", "typed", "deleted")},
             "pauses": 0, "longest_pause_s": 0, "longest_burst_s": 0, "first_key_s": 0, "revisions": 0,
-            "parts": [], "place": None, "lat": None, "lon": None,
+            "parts": [], "place": None, "lat": None, "lon": None, "place_tag": None, "weather": None,
         })
     sessions.sort(key=lambda s: s["start"])
 
@@ -233,6 +262,8 @@ def compute(root: Path, today: dt.date | None = None) -> dict:
         "hour_weekday": hour_weekday,
         "sessions": [{**{k: v for k, v in s.items() if k not in ("start", "end")},
                       "start": iso(s["start"]), "end": iso(s["end"])} for s in sessions],
+        "checkins": [{**c, "time": iso(c["time"])} for c in checkins],
+        "weather_days": weather_days,
         "places": sorted(places.values(), key=lambda p: -p["sessions"]),
         "files": sorted(({"path": k, **v} for k, v in files.items()), key=lambda f: -f["active_s"])[:20],
         "device": {

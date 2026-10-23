@@ -19,6 +19,8 @@ HEADER = "time,event,path,duration_s,active_s,keys,typed,deleted,words,wpm,batte
 
 def write(root: Path, days: int = 120, end: dt.date | None = None, seed: int = 7) -> None:
     rnd = random.Random(seed)
+    extra = random.Random(seed + 1)  # weather and check-ins (kept separate so the rest stays the same)
+    conditions = ["Clear", "Mostly clear", "Partly cloudy", "Overcast", "Light rain", "Rain", "Fog"]
     end = end or dt.date.today()
     (root / "_inkdeck" / "usage").mkdir(parents=True, exist_ok=True)
     (root / "Ideas").mkdir(parents=True, exist_ok=True)
@@ -71,10 +73,27 @@ def write(root: Path, days: int = 120, end: dt.date | None = None, seed: int = 7
             if place:
                 lines.append(f"    location: {{lat: {place[1]:.6f}, lon: {place[2]:.6f}, accuracy_m: "
                              f"{rnd.randint(8, 40)}, time: {start.isoformat()}, source: phone, place: \"{place[0]}\"}}")
+            if day < end:
+                lines.append(f"    weather: {{temp_c: {extra.uniform(2, 24):.1f}, humidity: {extra.randint(40, 95)}, "
+                             f"condition: \"{extra.choice(conditions)}\", aqi: {extra.randint(10, 90)}, "
+                             f"light: \"{'dark' if start.hour < 7 or start.hour >= 19 else 'daylight'}\"}}")
             lines.append("    parts:")
             lines += [f"      - {{start: \"{p['start']}\", end: \"{p['end']}\", active_s: {p['active_s']}, "
                       f"words: {p['words']}}}" for p in parts]
             body.append(f"## {start.strftime('%H:%M')}\n\nWrote {words} words.\n")
+        if extra.random() < 0.6:
+            t = dt.datetime(day.year, day.month, day.day, 7, 30, tzinfo=TZ)
+            lines += ["checkins:",
+                      f"  - {{time: {t.isoformat()}, kind: morning, sleep_h: {extra.choice([5.5, 6, 6.5, 7, 7.5, 8, 8.5])}, "
+                      f"bedtime: \"23:{extra.randint(0, 59):02d}\", energy: {extra.randint(1, 5)}, caffeine: {extra.randint(0, 3)}}}"]
+            if extra.random() < 0.7:
+                t = t.replace(hour=21)
+                lines.append(f"  - {{time: {t.isoformat()}, kind: evening, energy: {extra.randint(1, 5)}, "
+                             f"social: {extra.randint(0, 4)}, stress: {extra.randint(1, 5)}, win: true, learned: 3, enjoyed: 2}}")
+        if day < end:
+            lines += ["day:", "  sunrise: \"07:21\"", "  sunset: \"18:24\"", f"  temp_max_c: {extra.uniform(10, 26):.1f}",
+                      f"  temp_min_c: {extra.uniform(0, 9):.1f}", f"  weather: \"{extra.choice(conditions)}\"",
+                      "  moon: \"Waxing gibbous\"", "  final: true", "  source: sample"]
         (root / f"{day.isoformat()}.md").write_text("\n".join(lines) + "\n---\n\n" + "\n".join(body), encoding="utf-8")
 
         if rnd.random() < 0.3:
