@@ -29,6 +29,9 @@ void setupScreen(ScreenT& s, void* user);
 void statsScreen(ScreenT& s, void* user);
 bool statsLoad();  // reads the usage log for statsScreen; false without a clock
 void statsFree();
+void petScreen(ScreenT& s, void* user);
+bool petLoad();  // reads <notes>/_inkdeck/companion.md (from the server) for petScreen
+void petFree();
 
 // --- Input (called from the main loop) ---
 void handleKey(const freeink::KeyEvent& ev);

@@ -4,7 +4,10 @@ This is the hand-off document. Anyone (person or agent) picking the project up
 should be able to continue from here without the chat history. **Keep it
 current: update it in the same commit as any feature change.**
 
-Last updated: 2026-10-23, on branch `ccr-6bf7a05a-b0qao4` (not yet merged to `master`).
+Last updated: 2026-10-23 (pet + companion server), on branch `ccr-6bf7a05a-b0qao4` (not yet merged to `master`).
+
+**Resume here:** the next item is §5.1 (check-ins on the X4), then §5.2. Run `test/host/run.sh` and
+`pio run` first to confirm a green baseline.
 
 ---
 
@@ -28,6 +31,7 @@ and has a companion **server** (dashboard + enrichment + gamification).
 | `src/main.cpp` | setup/loop, Improv serial, settings handler, usage-log hooks, sleep |
 | `src/screens.cpp/.h`, `src/AppState.h` | all UI screens (browser, editor, menu, name entry, Sync, Setup, Stats) |
 | `src/StatsScreen.cpp` | Stats screen on the X4 |
+| `src/Companion.*`, `src/PetScreen.cpp` | **pure** parser for the server's `companion.md` + pet sprites; the Pet screen |
 | `src/Config.*` | settings (layers, keys, NVS storage) |
 | `src/Clock.*` | time zone, NTP, ISO formatting |
 | `src/Journal.*` | daily entry (open today, front matter, `## HH:MM` session headings) |
@@ -47,8 +51,9 @@ and has a companion **server** (dashboard + enrichment + gamification).
 | `tools/build_web_flasher.py` | assembles the web flasher site |
 | `web/` | web flasher (ESP Web Tools 10.4.0 + settings over Improv) |
 | `.github/workflows/web-flasher.yml` | builds firmware + deploys flasher to GitHub Pages on push to `master` |
-| `server/` | Python companion server (dashboard, stats; see §4) |
+| `server/` | Python server: dashboard, stats, companion (pet/XP/achievements), weather enrichment, write-back (§4) |
 | `docs/phone-location.md` | BLE GATT contract for the phone app |
+| `docs/img/` | screenshots (host renders) |
 | `test/host/` | host test suite (`test/host/run.sh`) |
 | `test/web`, `test/improv`, `test/render` | browser/Node/render harnesses (manual; see `test/README.md`) |
 
@@ -99,83 +104,124 @@ Format documented at the top of `src/JournalMeta.h`. Also supports `place_tag:` 
   `time,event,path,duration_s,active_s,keys,typed,deleted,words,wpm,battery,detail`. Events: sessions, syncs, keyboard, etc.
 - Stats screen on the X4: today/week/month words, streak & best streak, best day, hour buckets, syncs, keyboard time.
 
-### 3.9 Settings keys (`/inkdeck.txt`, flasher, setup page)
+### 3.9 Pet screen (display only)
+- *Menu → Pet* reads `<notes>/_inkdeck/companion.md` (written by the server, synced like any note) and shows the
+  pet as a 16×16 pixel sprite (bigger per stage; ears from teen; face per mood), its line, fullness/happiness/health
+  bars, level + XP bar, streak, today's words vs goal, badges, last update.
+- **Live feeding**: fullness = `pet_fullness_base + today's words × pet_food_per_100_words / 100` (never below the
+  server's figure); a hungry pet shows as content once today's words lift it to 25+. Today's words come from the usage log.
+- Without the file it explains how to set up the server. Parser + sprites: `src/Companion.*` (host-tested).
+
+### 3.10 Settings keys (`/inkdeck.txt`, flasher, setup page)
 `wifi_ssid`, `wifi_password`, `timezone`, `notes_folder`, `journal_subfolder`, `repo_url` (alias `github_repo`),
 `branch` (alias `github_branch`), `git_token` (alias `github_token`), `location` (`phone`/`off`),
 `location_every`, `writing_stats` (`on`/`off`). `#` is a comment only at line start.
 
 ## 4. Implemented features (server, `server/`)
 
-- Python 3.10+ stdlib + PyYAML. `app.py` (HTTP + git refresher), `stats.py` (aggregation),
-  `dashboard/index.html` (Chart.js + Leaflet), `sample_data.py`, `test_stats.py`, Dockerfile, compose.
+Direction from the user: **"The intermediary server needs to handle as much of this as possible."** The server
+computes; the X4 records raw data and displays results.
+
+- Python 3.10+ stdlib + PyYAML. Files:
+  - `app.py`: HTTP server + git refresher + write-back.
+  - `stats.py`: aggregation; also check-ins, session weather, `day:` blocks.
+  - `companion.py`: XP, levels, achievements, streaks and the pet. It is pure and deterministic.
+  - `enrich.py`: Open-Meteo enrichment.
+  - `dashboard/index.html`.
+  - `sample_data.py`, which includes weather and check-ins.
+  - Tests: `test_stats.py`, `test_companion.py`, `test_enrich.py`.
+  - Docker: `Dockerfile` and `compose.yaml`.
 - Keeps a shallow clone, pulls every `PULL_INTERVAL` s. Token passed as an `http.extraHeader`, never stored.
-- Endpoints: `/`, `/api/stats`, `POST /api/refresh`, `/healthz`. Optional basic auth (`DASHBOARD_PASSWORD`).
-- Env: `REPO_URL`, `GIT_TOKEN`, `GIT_USERNAME`, `NOTES_PATH`, `NOTES_SUBFOLDER`, `PULL_INTERVAL`, `DASHBOARD_PASSWORD`, `PORT`.
-- Docker image has **not** been built/tested (no Docker daemon in the dev environment).
+- Endpoints: `/`, `/api/stats` (now includes `companion`, `checkins`, `weather_days`), `POST /api/refresh`, `/healthz`.
+- **Write-back** (`WRITE_BACK=1`): per refresh:
+  1. pull (`reset --hard` to the remote);
+  2. enrich finished entries;
+  3. recompute;
+  4. write `_inkdeck/companion.md` only if it changed beyond its `updated:` line;
+  5. commit as "InkDeck Companion" and `push origin HEAD:<branch>`.
+  If the push is rejected (the X4 pushed meanwhile), the next refresh redoes the work from the new head.
+  Tested end to end against a local bare repo.
+- **Companion rules** (`companion.py` docstring + `server/README.md`):
+  - XP: words/10 + 10 per session of ≥5 active minutes + 15 per check-in + 25 per goal day + 50 per achievement.
+  - Level L needs 50·L·(L−1) XP.
+  - Streak: `REST_DAYS` misses per ISO week are forgiven. Today never breaks a streak.
+  - 22 achievements (list in `ACHIEVEMENTS`), each with its unlock date.
+  - **Pet**:
+    - An egg arrives with the first writing day and hatches after 3 writing days.
+    - Stages by days since hatching: baby, child 7, teen 21, adult 60.
+    - Adult form: scholar, wanderer, chatterbox, early_bird, night_owl or dreamer.
+    - Fullness: the daily goal = +70; −40 each night.
+    - Happiness: check-ins, streak ≥3, goal, achievements; −20 for a day without writing, −5 otherwise.
+    - Health: −25 a night at 0 fullness; +10 when fullness ≥40.
+    - At 0 health: in `gentle` mode it hibernates (3 writing days to revive); in `classic` mode it is lost
+      (kept in history) and a new egg comes with the next entry.
+    - Moods: egg, happy, content, hungry, sad, sick, asleep, gone, each with an ASCII face and lines.
+- **Weather** (`enrich.py`):
+  - Only touches entries whose day is over and whose `modified` is ≥2 h old, so it never collides with the X4.
+  - Adds a session `weather:` flow map and a top-level `day:` block (`final: true`). The rest of the file is byte-identical.
+  - Location: session location, else `HOME_LOCATION`.
+  - Source: the forecast API for ≤85 days back; the archive API for older days.
+  - Air quality: best effort.
+  - Responses cached in `CACHE_PATH`; 1 s pacing; one retry on timeout; stops at HTTP 429.
+- **Dashboard**:
+  - Companion card: pet face, bars, level/XP, streak, goal, rest days.
+  - Achievements grid.
+  - Day view shows the day's weather/sun/moon, each session's weather, and check-ins.
+  - Verified at desktop and phone widths, light and dark, with no overflow.
+- Env (all documented in `.env.example` and `app.py`):
+  - Git and access: `REPO_URL`, `GIT_TOKEN`, `GIT_USERNAME`, `BRANCH`, `NOTES_PATH`, `NOTES_SUBFOLDER`.
+  - Server: `PULL_INTERVAL`, `DASHBOARD_PASSWORD`, `PORT`, `TZ`.
+  - Companion and weather: `WRITE_BACK`, `WEATHER`, `HOME_LOCATION`, `CACHE_PATH`, `DAILY_GOAL`, `REST_DAYS`,
+    `PET_NAME`, `PET_MODE`.
+- Docker image **not** built/tested (no Docker daemon in the dev environment). The Dockerfile installs `tzdata`.
+- Open-Meteo rate-limited the dev container's shared IP (429). The archive API was verified live; the forecast
+  API's response format is verified by the fixture `test/host/fixtures/wx.json`, captured from it earlier.
 
 ## 5. Not yet implemented (backlog, in priority order)
 
-Direction from the user: **"The intermediary server needs to handle as much of this as possible."**
-So: the server computes and writes; the X4 records raw data and displays results.
+### 5.1 Check-ins (morning / evening) — device input, server already reads them
+- The server already parses front-matter `checkins:` items, gives XP and achievements for them, and the
+  dashboard shows them in the day view. **Nothing on the X4 writes them yet.**
+- Templates:
+  - Files `<notes>/_inkdeck/checkins/morning.txt` and `evening.txt`, synced.
+  - Format: `title:`, `when: HH:MM-HH:MM`, and fields `key | type | label`.
+  - Field types: `scale`, `number`, `time`, `count`, `check`, `choice a,b,c`, `text`, `list N`.
+- Default fields:
+  - Sleep and body: sleep_h, bedtime, wake, rest, energy, caffeine, sugar, meds/vitamins, PT, symptoms.
+  - Day: where, social, win, stress, response, focus.
+  - Reflection (3-2-1): learned×3, enjoyed×2.
+- Storage:
+  - Front matter: a `checkins:` list item as a flow map, e.g. `{time: <iso>, kind: morning|evening, key: value…}`.
+    The helper `journalmeta::findListItem` exists and is tested.
+  - **Quote times** (`bedtime: "23:30"`), because YAML 1.1 reads 23:30 as a base-60 int.
+  - Text answers go in the body; the flow map keeps only `win: true` and counts such as `learned: 3`.
+    The server's "Reflector" badge needs `kind: evening` plus a truthy `learned`.
+- Also: a usage-log `checkin` event, setting `checkins = on|off`, and a menu item "Check-in".
+- A prompt shows when Today opens inside a template's `when` window; it can be skipped.
+- Server: check-in trends and correlations on the dashboard (sleep/energy/caffeine/weather/place/AQI vs words).
 
-### 5.1 Server becomes a companion that writes back (in progress)
-- Optional write access (`WRITE_BACK=1`): commit + push to the journal repo as "InkDeck Companion".
-- Output file the device pulls through normal sync: `_inkdeck/companion.md` — front matter with the
-  pet, level/XP, streaks, today's goal progress, newest achievements (simple `key: value` lines the X4 can parse),
-  plus a readable body for GitJournal.
-- To avoid sync conflicts with the X4, the server edits a journal entry **only after that day is over and the
-  file hasn't changed for 2 h**; today's data lives only in `companion.md`.
+### 5.2 Small device-side gamification touches
+- Daily goal progress in the editor header and a toast on reaching it. The goal comes from `companion.md`'s `goal:`;
+  today's words from the usage log/WritingStats.
+- Toast on sync when `latest_achievement` changed ("New badge: …").
+- Optional: pet face in the browser header or sleep screen.
 
-### 5.2 Weather / sun / air quality enrichment (server-side)
-- Open-Meteo forecast + air-quality APIs (no key, `timezone=auto`, single day, ≤ ~90 days back; older days
-  via the archive API `archive-api.open-meteo.com/v1/archive`).
-- Per session: `weather: {temp_c, feels_c, humidity, cloud, precip_mm, wind_kmh, condition, aqi, pm25, light}`
-  where `light` is "dark" / "sunrise" / "golden hour" / "sunset" / "X after sunrise" / "X before sunset".
-- Per entry: top-level `day:` block (sunrise, sunset, daylight_h, temp max/min, precip, uv_max, weather, moon, `final`, `source`).
-- Location: session `location:`, else `home_location = lat,lon` (setting / server env `HOME_LOCATION`).
-- The firmware module `src/OpenMeteo.*` already implements the same output on-device (tested against real
-  responses in `test/host/fixtures/`). It is kept as a fallback for running without a server; not wired in.
+### 5.3 Other environmental data
+- Phone **ambient** characteristic `ff3f0002-53df-4bf1-9794-eac66727467a`, value `1;key=value;…`, to session `ambient:`.
+  The parser `journalmeta::parseAmbient` is done and tested; the BLE read is not wired, and the doc section is not written.
+- **Place tags**: named places (`Name; lat,lon; radius_m`) to session `place_tag:`. This is better done on the
+  server (env `PLACES`), writing `place_tag` during enrichment. Not written.
+- Device-side weather fallback without a server: `src/OpenMeteo.*` is ready (tested), not wired into SyncFlow.
 
-### 5.3 Gamification (server computes, X4 shows)
-- Daily word goal (`daily_goal`, default 250) — progress in the editor header, toast on reaching it (X4 can compute today's
-  words locally; the server confirms).
-- XP: words/10 + 10 per session ≥5 min + 15 per check-in + 25 per goal day + 50 per achievement.
-  Level L needs `50·L·(L−1)` XP (0, 100, 300, 600, 1000 …).
-- Achievements: first words; streaks 3/7/30/100; words 1k/10k/50k/100k; early bird (before 7:00); night owl (after 23:00);
-  marathon (session ≥45 min); sprinter (≥40 wpm, ≥100 words); check-ins 7; check-in week; reflector (3-2-1 done 7×);
-  goal 7 days; weekend writer; rain writer, sunrise writer, explorer (5 places) — server-only (need weather/location).
-- Rest days (`rest_days` per week, default 1) protect streaks.
-
-### 5.4 Journaling pet companion (Tamagotchi-like) — requested
-- Kept alive by writing. Fully **derived from journal history** (deterministic replay; no hidden state), so the
-  server can recompute it any time and the X4 can show it.
-- Design: see `server/companion.py` once written; summary in §5.1/§7 of this file when done.
-
-### 5.5 Check-ins (morning / evening) — device
-- Templates `<notes>/_inkdeck/checkins/morning.txt`, `evening.txt` (synced). Format: `title:`, `when: HH:MM-HH:MM`,
-  fields `key | type | label`; types `scale`, `number`, `time`, `count`, `check`, `choice a,b,c`, `text`, `list N`.
-- Default fields: sleep_h, bedtime, wake, rest, energy, caffeine, sugar, meds/vitamins, PT, symptoms, where, social,
-  win, stress, response, learned×3, enjoyed×2 (3-2-1 reflection), focus.
-- Stored as front-matter `checkins:` list items (flow maps; helper `findListItem` exists and is tested), readable
-  answers in the body. Usage-log `checkin` event. Setting `checkins = on|off`; menu item "Check-in".
-- Server: check-in trends and correlations (sleep/energy/caffeine/weather/place/AQI vs words) on the dashboard.
-
-### 5.6 Other environmental data
-- Phone **ambient** characteristic `ff3f0002-53df-4bf1-9794-eac66727467a`, value `1;key=value;…` → session `ambient:`
-  (parser `journalmeta::parseAmbient` done + tested; BLE read not wired; doc not written).
-- **Place tags**: setting `place = Name; lat,lon; radius_m` (repeatable) → session `place_tag:` (field exists; matching not written).
-  Could be done by the server instead.
-
-### 5.7 Everything else
-- Other git providers (Gitea/Forgejo/GitLab/Bitbucket/Azure REST) or a git smart-HTTP bridge on the server.
-- Server as a git bridge (device talks only to the server; server talks to any provider).
-- Link picker (`[[` / Ctrl-K), follow link (Ctrl-Enter), backlinks; folder-rename link updates.
-- Wi-Fi-scan location; location settings on the on-device Setup page.
-- OTA updates from the server.
+### 5.4 Everything else
+- Other git providers (Gitea/Forgejo/GitLab/Bitbucket/Azure REST), or the server as a git bridge for the X4.
+- Link picker (`[[` / Ctrl-K), follow link (Ctrl-Enter), backlinks, and link updates when a folder is renamed.
+- Wi-Fi-scan location, and location settings on the on-device Setup page.
+- OTA firmware updates from the server.
 - Phone app implementing the GATT server (location + ambient).
 - Enable GitHub Pages (Settings → Pages → Source: GitHub Actions) after merging to `master`.
-- Build/test the Docker image.
-- **Test on real X4 hardware** (RAM headroom during TLS + BLE, sync, display).
+- Build and test the Docker image.
+- **Test on real X4 hardware** (RAM headroom during TLS + BLE, sync, display, the Pet screen).
 
 ## 6. How to build and test
 
@@ -204,3 +250,11 @@ are in `test/web`, `test/improv`, `test/render`; see `test/README.md`.
 - New journal entry isn't saved until typing (avoids empty files syncing).
 - Server reads via shallow clone with header auth; token never written to disk.
 - Server does heavy lifting (weather, gamification, pet); firmware stays lean (RAM, radio time).
+- Pet, XP and achievements are **derived by replaying the journal history** (no stored state): reproducible,
+  survives server restarts, and the rules can change without migrations.
+- The server edits only **finished, quiet** entries (day over, unchanged for 2 h), so it can't conflict with the
+  X4's two-way sync. Today's state lives in `_inkdeck/companion.md`, which only the server writes.
+- `companion.md` front matter is flat `key: value` so the X4 needs no YAML parser. It is re-committed only when
+  something besides `updated:` changes, to avoid needless syncs.
+- The X4 adds today's words to the pet's fullness locally, so feeding is visible before the next sync.
+- Pet default is `gentle` (hibernates rather than dies); `classic` is opt-in.

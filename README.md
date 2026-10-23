@@ -99,6 +99,25 @@ including how to test with nRF Connect.
   typing speed, weekday × hour, habits, places map, per-day timelines,
   battery and files.
 
+## Pet, levels and weather
+
+Run the [server](server/README.md) with `WRITE_BACK=1` and it becomes a
+companion for your journal:
+
+- **A pet you keep alive by writing.** An egg hatches after 3 writing days and
+  grows up over two months; writing feeds it, check-ins, streaks and badges
+  cheer it up, and skipping days makes it hungry, sad and ill (it hibernates
+  until you come back). *Menu → Pet* on the X4 shows it, and it eats what you
+  write today straight away.
+- **Levels, XP, streaks (with rest days), a daily word goal and 22 achievements.**
+- **Weather, sun and air quality** added to each session and day of finished
+  entries (from Open-Meteo, at the phone location or `HOME_LOCATION`).
+
+The server works it all out from the repo and commits `_inkdeck/companion.md`;
+the X4 just syncs it and draws it.
+
+![Pet screen](docs/img/pet-screen.png)
+
 ## Installing from the browser
 
 The web flasher installs InkDeck from Chrome or Edge on a computer, with no

@@ -119,6 +119,8 @@ App::ScreenFn fnFor(AppScreen s) {
       return setupScreen;
     case AppScreen::Stats:
       return statsScreen;
+    case AppScreen::Pet:
+      return petScreen;
   }
   return browserScreen;
 }

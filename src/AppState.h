@@ -24,6 +24,7 @@ enum class AppScreen : uint8_t {
   Sync,
   Setup,
   Stats,
+  Pet,
 };
 
 enum class NamePurpose : uint8_t {

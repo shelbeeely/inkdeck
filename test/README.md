@@ -15,6 +15,7 @@ server's unit tests. Needs `g++`, `python3` and `PyYAML`, and the
 | `usage_test.cpp` | usage CSV format/parse, streaks, totals, typing counters |
 | `linkrewrite_test.cpp` | link rewriting on rename (wiki + markdown links) |
 | `syncutil_test.cpp`, `url_test.cpp` | blob SHA-1, base64, escaping, sync decision table, repo URL parsing |
+| `companion_test.cpp` | parsing the server's `companion.md`, live fullness/mood, sprites |
 | `tree_test.cpp` | streaming git-tree parser on a real GitHub response, random chunking |
 
 ## Manual harnesses
@@ -29,5 +30,14 @@ assume the repo is at `/home/user/inkdeck`.
 - `improv/` — compiles `src/Improv.cpp` against stubs into `./harness`, then
   `settings_test.mjs` drives it through `web/settings.js` over a pipe;
   `test.mjs` drives it with `improv-wifi-serial-sdk` (npm) to check Wi-Fi provisioning.
-- `render/` — renders the Stats screen with the real FreeInkUI on the host to
-  PGM (convert to PNG with Pillow) in all four orientations.
+- `render/` — renders screens with the real FreeInkUI on the host to PGM
+  (convert to PNG with Pillow). `harness.cpp`: the Stats screen.
+  `pet_harness.cpp <notes folder> <words today> <out.pgm>`: the Pet screen
+  from `<notes folder>/_inkdeck/companion.md`. Build from `test/render`:
+
+  ```sh
+  g++ -std=c++17 -O1 -I pet_stub -I stub -I ../../src -I ../../freeink-sdk/libs/ui/FreeInkUI/include \
+    pet_harness.cpp ../../src/PetScreen.cpp ../../src/Companion.cpp ../../src/UsageStats.cpp \
+    ../../src/JournalMeta.cpp ../../freeink-sdk/libs/ui/FreeInkUI/src/FreeInkUI.cpp -o pet
+  # Stats: harness.cpp ../../src/StatsScreen.cpp ../../src/UsageStats.cpp ../../src/JournalMeta.cpp + FreeInkUI.cpp (no pet_stub)
+  ```

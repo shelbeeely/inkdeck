@@ -27,7 +27,8 @@ static constexpr uint8_t kModGui = 0x08 | 0x80;    // L/R Cmd / Win / GUI
 
 static const char* kMenuItems[] = {"Today's journal", "Sync",          "New file",      "New folder",
                                    "Rename",          "Delete",        "Bluetooth",     "Orientation",
-                                   "Set date/time",   "Setup over Wi-Fi", "Stats",         "Forget HID devices"};
+                                   "Set date/time",   "Setup over Wi-Fi", "Stats",         "Pet",
+                                   "Forget HID devices"};
 enum MenuItem : int {
   kMenuToday,
   kMenuSync,
@@ -40,6 +41,7 @@ enum MenuItem : int {
   kMenuSetClock,
   kMenuSetup,
   kMenuStats,
+  kMenuPet,
   kMenuForget,
 };
 static constexpr int kMenuCount = sizeof(kMenuItems) / sizeof(kMenuItems[0]);
@@ -932,6 +934,22 @@ static void leaveStats() {
   uiGotoScreen(AppScreen::Menu);
 }
 
+// ---------------------------------------------------------------------------
+// Pet (from the server's companion.md)
+// ---------------------------------------------------------------------------
+static void enterPet() {
+  if (!petLoad()) {
+    showToast("Out of memory");
+    return;
+  }
+  uiGotoScreen(AppScreen::Pet);
+}
+
+static void leavePet() {
+  petFree();
+  uiGotoScreen(AppScreen::Menu);
+}
+
 static void leaveSync() {
   if (!g_state.syncDone) return;
   if (g_state.pendingToday && Clock::valid()) {
@@ -1018,6 +1036,9 @@ static void uiConfirm() {
         case kMenuStats:
           enterStats();
           break;
+        case kMenuPet:
+          enterPet();
+          break;
         case kMenuForget:
           forgetAll();
           break;
@@ -1050,6 +1071,9 @@ static void uiConfirm() {
       break;
     case AppScreen::Stats:
       leaveStats();
+      break;
+    case AppScreen::Pet:
+      leavePet();
       break;
   }
 }
@@ -1093,6 +1117,9 @@ static void uiBack() {
       break;
     case AppScreen::Stats:
       leaveStats();
+      break;
+    case AppScreen::Pet:
+      leavePet();
       break;
   }
 }

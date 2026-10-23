@@ -63,7 +63,7 @@ bool dayHour(const char* iso, int32_t& day, int& hour) {
 }  // namespace
 
 size_t format(const Event& e, char* out, size_t outsz) {
-  char path[340], detail[200], battery[8];
+  char path[340], detail[200], battery[12];
   field(e.path, path, sizeof(path));
   field(e.detail, detail, sizeof(detail));
   if (e.battery >= 0) snprintf(battery, sizeof(battery), "%d", e.battery);

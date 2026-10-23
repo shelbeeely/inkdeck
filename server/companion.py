@@ -97,7 +97,7 @@ SAYS = {
     "hungry": ["My tummy is rumbling...", "Just a few sentences?", "I could really use some words."],
     "sad": ["I missed you.", "It's quiet without you.", "Tell me about your day?"],
     "sick": ["I don't feel so good...", "Words are the only medicine.", "Please write something."],
-    "asleep": ["(hibernating - write a few days in a row to wake me)"],
+    "asleep": ["Zzz... (write on 3 days to wake me)"],
     "gone": ["(A new egg will arrive with your next entry.)"],
 }
 

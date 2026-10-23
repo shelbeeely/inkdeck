@@ -33,6 +33,7 @@ run journalmeta "$here/journalmeta_test.cpp" "$src/JournalMeta.cpp" -- "$out/doc
 run enrich "$here/enrich_test.cpp" "$src/JournalMeta.cpp" -- "$out/enriched.md"
 run openmeteo "$here/openmeteo_test.cpp" "$src/OpenMeteo.cpp" "$json"/src/*.cpp -- "$here/fixtures"
 run usage "$here/usage_test.cpp" "$src/UsageStats.cpp" "$src/JournalMeta.cpp"
+run companion "$here/companion_test.cpp" "$src/Companion.cpp"
 run linkrewrite "$here/linkrewrite_test.cpp" "$src/LinkRewrite.cpp"
 run syncutil "$here/syncutil_test.cpp" "$src/SyncUtil.cpp" -- "hello world"
 run repourl "$here/url_test.cpp" "$src/SyncUtil.cpp"
