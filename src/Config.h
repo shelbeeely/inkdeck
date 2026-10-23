@@ -25,6 +25,9 @@ struct Config {
   char repo[100] = {0};               // parsed from repoUrl: "owner/name"
   char branch[64] = "main";
   char token[160] = {0};
+  bool locationFromPhone = false;   // location = phone (off by default)
+  uint16_t locationEveryMin = 15;   // fresh location at most this often
+  bool writingStats = true;         // per-session writing times in journal entries
 
   // Resets to the built-in defaults, then applies each layer above. Returns
   // false if kPath doesn't exist.

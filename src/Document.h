@@ -87,6 +87,9 @@ class Document {
   bool setFrontMatterValue(const char* key, const char* value);
   // Append `s` at the end of the document and put the caret after it.
   void appendAtEnd(const char* s);
+  // Replace [from, to) with n bytes of s, keeping the caret on the same text.
+  // Returns false (no change) if the result wouldn't fit.
+  bool replaceRange(uint32_t from, uint32_t to, const char* s, uint32_t n);
 
  private:
   void deleteRange(uint32_t from, uint32_t to);  // delete [from,to), caret -> from

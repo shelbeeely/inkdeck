@@ -8,6 +8,7 @@
 #include "Clock.h"
 #include "Config.h"
 #include "Journal.h"
+#include "WritingStats.h"
 #include "SetupFlow.h"
 #include "SyncFlow.h"
 
@@ -56,6 +57,7 @@ static bool toastActive() { return g_state.toast[0] && millis() < g_state.toastU
 
 bool saveDocument() {
   Document& d = g_state.doc;
+  if (WritingStats::active()) WritingStats::writeInto(d);
   if (d.dirty()) Journal::touchModified(d);
   if (!d.save()) return false;
   g_state.journalStub = 0;  // saved on purpose: keep the heading from now on
@@ -75,6 +77,7 @@ static void leaveEditor() {
   if (documentHasUserChanges()) {
     uiGotoScreen(AppScreen::ConfirmDiscard);
   } else {
+    WritingStats::end();
     loadDir();
     uiGotoScreen(AppScreen::Browser);
   }
@@ -221,6 +224,7 @@ static void browserOpen() {
   char full[224];
   joinPath(full, sizeof(full), st.path, label);
   g_state.journalStub = 0;
+  WritingStats::end();
   if (g_state.doc.load(full)) {
     if (g_state.doc.truncated()) showToast("File too large; truncated");
     uiGotoScreen(AppScreen::Editor);
@@ -636,7 +640,19 @@ static void editorMoveVertical(int dir, bool extend = false) {
   d.setCursorExtend(tStart + best, extend);
 }
 
+static void editorKeyImpl(const KeyEvent& ev);
+
+// Edits feed the journal session's writing times.
 static void editorKey(const KeyEvent& ev) {
+  const Document& d = g_state.doc;
+  const uint32_t lenBefore = d.length();
+  const bool plain = (ev.mods & (kModCtrl | kModGui)) == 0;
+  const char typed = (ev.special == SpecialKey::None && plain) ? ev.ch : 0;
+  editorKeyImpl(ev);
+  if (g_state.screen == AppScreen::Editor && (d.length() != lenBefore || typed)) WritingStats::onEdit(d, typed);
+}
+
+static void editorKeyImpl(const KeyEvent& ev) {
   Document& d = g_state.doc;
   const bool ctrl = (ev.mods & kModCtrl) != 0;
   const bool shift = (ev.mods & kModShift) != 0;
@@ -955,6 +971,7 @@ static void uiConfirm() {
       break;
     case AppScreen::ConfirmDiscard:
       g_state.journalStub = 0;
+      WritingStats::end();
       loadDir();
       uiGotoScreen(AppScreen::Browser);
       break;

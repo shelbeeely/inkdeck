@@ -73,7 +73,16 @@ const char kTemplate[] =
     "# access token limited to this repository with Contents: Read and write.\n"
     "repo_url =\n"
     "branch = main\n"
-    "git_token =\n";
+    "git_token =\n"
+    "\n"
+    "# Location of each journal session, read from your phone over Bluetooth\n"
+    "# (see docs/phone-location.md): off or phone. A new location is taken at\n"
+    "# most every location_every minutes; sessions in between reuse the last one.\n"
+    "location =\n"
+    "location_every =\n"
+    "\n"
+    "# Writing times per session and paragraph in journal entries: on or off.\n"
+    "writing_stats =\n";
 
 }  // namespace
 
@@ -99,6 +108,9 @@ void Config::applyLine(char* line) {
   else if (strcmp(key, "repo_url") == 0 || strcmp(key, "github_repo") == 0) copyField(repoUrl, sizeof(repoUrl), value);
   else if (strcmp(key, "branch") == 0 || strcmp(key, "github_branch") == 0) copyField(branch, sizeof(branch), value);
   else if (strcmp(key, "git_token") == 0 || strcmp(key, "github_token") == 0) copyField(token, sizeof(token), value);
+  else if (strcmp(key, "location") == 0) locationFromPhone = strcmp(value, "phone") == 0;
+  else if (strcmp(key, "location_every") == 0) locationEveryMin = static_cast<uint16_t>(constrain(atoi(value), 0, 1440));
+  else if (strcmp(key, "writing_stats") == 0) writingStats = strcmp(value, "off") != 0;
 }
 
 namespace {
@@ -192,7 +204,7 @@ bool Config::writeTemplateIfMissing() const {
 bool Config::isKnownKey(const char* key) {
   static const char* kKeys[] = {"wifi_ssid", "wifi_password", "timezone",     "notes_folder",  "journal_subfolder",
                                 "repo_url",  "branch",        "git_token",    "github_repo",   "github_branch",
-                                "github_token"};
+                                "github_token", "location",    "location_every", "writing_stats"};
   for (const char* k : kKeys) {
     if (strcmp(k, key) == 0) return true;
   }

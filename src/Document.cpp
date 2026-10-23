@@ -410,3 +410,21 @@ void Document::appendAtEnd(const char* s) {
   cursor_ = len_;
   anchor_ = cursor_;
 }
+
+bool Document::replaceRange(uint32_t from, uint32_t to, const char* s, uint32_t n) {
+  if (from > to || to > len_) return false;
+  const int32_t delta = static_cast<int32_t>(n) - static_cast<int32_t>(to - from);
+  if (len_ + delta > INKDECK_DOC_CAPACITY - 1) return false;
+  memmove(buf_ + to + delta, buf_ + to, len_ - to);
+  memcpy(buf_ + from, s, n);
+  len_ += delta;
+  buf_[len_] = '\0';
+  auto shift = [&](uint32_t p) -> uint32_t {
+    if (p >= to) return p + delta;
+    return p > from + n ? from + n : p;
+  };
+  cursor_ = shift(cursor_);
+  anchor_ = shift(anchor_);
+  dirty_ = true;
+  return true;
+}

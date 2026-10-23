@@ -3,11 +3,13 @@
 #include <BleKeyboardHost.h>
 #include <WiFi.h>
 
+#include "PhoneLocation.h"
 #include "screens.h"
 
 namespace Net {
 
 bool up(const char* ssid, const char* password, uint32_t timeoutMs) {
+  PhoneLocation::waitIdle(12000);  // it's using the BLE stack we're about to stop
   BleHid.end(2000);  // frees the NimBLE heap for Wi-Fi + TLS
   WiFi.mode(WIFI_STA);
   WiFi.setHostname("inkdeck");

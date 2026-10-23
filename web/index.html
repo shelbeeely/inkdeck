@@ -170,6 +170,24 @@
         <label for="journal_subfolder">Journal subfolder (inside the notes folder)</label>
         <input id="journal_subfolder" name="journal_subfolder" placeholder="top level" spellcheck="false">
       </details>
+
+      <details>
+        <summary>Location and writing times</summary>
+        <label for="location">Location of each journal session</label>
+        <select id="location" name="location">
+          <option value="off">Off</option>
+          <option value="phone">From my phone (Bluetooth)</option>
+        </select>
+        <span class="hint">Needs a phone app serving InkDeck's location over Bluetooth LE
+          (<a href="https://github.com/shelbeeely/inkdeck/blob/master/docs/phone-location.md" target="_blank" rel="noopener">spec</a>).</span>
+        <label for="location_every">New location at most every (minutes)</label>
+        <input id="location_every" name="location_every" type="number" min="0" max="1440" placeholder="15">
+        <label for="writing_stats">Writing times per session and paragraph</label>
+        <select id="writing_stats" name="writing_stats">
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </details>
     </form>
     <p class="muted" style="margin-top:16px">These go straight to the X4 over the USB cable. Nothing is
       uploaded or saved by this page.</p>
@@ -245,7 +263,7 @@
   function settingsLines() {
     const lines = [];
     for (const name of ["repo_url", "git_token", "branch", "timezone", "wifi_ssid", "wifi_password",
-                        "notes_folder", "journal_subfolder"]) {
+                        "notes_folder", "journal_subfolder", "location", "location_every", "writing_stats"]) {
       const value = form.elements[name].value.replace(/[\r\n]/g, "").trim();
       if (value) lines.push(`${name} = ${value}`);
     }

@@ -29,5 +29,8 @@ void formatForEntry(char* out, size_t outsz);
 void formatDate(char* out, size_t outsz);  // "YYYY-MM-DD"
 void formatTime(char* out, size_t outsz);  // "HH:MM"
 void formatIso(char* out, size_t outsz);   // "YYYY-MM-DDTHH:MM:SS+HH:MM" (GitJournal)
+// The same for a given unix time, and "HH:MM:SS" (for journal metadata).
+void formatIsoAt(int64_t t, char* out, size_t outsz);
+void formatClockAt(int64_t t, char* out, size_t outsz);
 
 }  // namespace Clock

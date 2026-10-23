@@ -25,6 +25,8 @@
 #include "Clock.h"
 #include "Config.h"
 #include "Improv.h"
+#include "PhoneLocation.h"
+#include "WritingStats.h"
 #include "InkDeckIcons.h"
 #include "SetupFlow.h"
 #include "screens.h"
@@ -367,6 +369,8 @@ void loop() {
   char improvSsid[33], improvPassword[65];
   if (Improv::takeWifiRequest(improvSsid, improvPassword)) startSetup(improvSsid, improvPassword, true);
   if (g_state.screen == AppScreen::Setup) setupLoop();
+  journalmeta::Fix fix;
+  if (PhoneLocation::take(fix)) WritingStats::setLocation(fix);
   if (Improv::takeSettingsChanged()) {
     g_config.load();
     Clock::applyTimezone(g_config.timezone);

@@ -6,7 +6,9 @@
 
 #include "Clock.h"
 #include "Config.h"
+#include "PhoneLocation.h"
 #include "SyncUtil.h"
+#include "WritingStats.h"
 
 namespace Journal {
 
@@ -55,6 +57,9 @@ bool openToday(Document& doc, uint32_t& stubHash) {
   snprintf(heading, sizeof(heading), "%s## %s\n\n", afterHeader ? "\n" : sep, time);
   doc.appendAtEnd(heading);
   stubHash = textHash(doc);
+  // The session record also carries the location, so keep it for either.
+  if (g_config.writingStats || g_config.locationFromPhone) WritingStats::begin(doc);
+  PhoneLocation::request();
   return true;
 }
 

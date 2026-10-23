@@ -42,6 +42,40 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 - **Set date/time** (menu) — set the clock by hand (`YYYY-MM-DD HH:MM`) when
   there's no Wi-Fi.
 
+## Writing times and location
+
+Each time *Today's journal* opens, InkDeck starts a **session** (the
+`## HH:MM` heading) and records, in the entry's front matter:
+
+- when the session opened and when you last typed,
+- active typing time (pauses over a minute don't count), keystrokes, and words
+  added,
+- one **part** per paragraph written, each with its start and end time,
+  active time, and words,
+- optionally, **where** you were, read from your phone over Bluetooth LE.
+
+```yaml
+sessions:
+  - start: 2026-10-23T10:00:00-07:00
+    end: 2026-10-23T10:05:18-07:00
+    active_s: 18
+    keys: 82
+    words: 15
+    location: {lat: 45.523100, lon: -122.676500, accuracy_m: 12, time: 2026-10-23T09:59:50-07:00, source: phone, place: "Portland"}
+    parts:
+      - {start: "10:00:00", end: "10:00:07", active_s: 7, words: 6}
+      - {start: "10:05:07", end: "10:05:18", active_s: 11, words: 9}
+```
+
+The record is updated on every save, syncs with the entry, and GitJournal
+keeps front matter it doesn't use, so the history stays with your notes.
+
+Settings: `writing_stats = on|off` (default on), `location = off|phone`
+(default off), `location_every = 15` (minutes; sessions opened sooner reuse the
+last location). Phone location needs an app on the phone serving InkDeck's
+location service: the contract is in [docs/phone-location.md](docs/phone-location.md),
+including how to test with nRF Connect.
+
 ## Installing from the browser
 
 The web flasher installs InkDeck from Chrome or Edge on a computer, with no
@@ -204,6 +238,9 @@ src/
   Improv.*       Improv Serial: Wi-Fi credentials from the web flasher over USB
   SetupFlow.*    Setup screen: join Wi-Fi, show the page address + QR code
   SetupServer.*  the setup web page (repo URL, token, time zone, folders)
+  WritingStats.* session and paragraph writing times, written into front matter
+  PhoneLocation.* reads the session location from the phone's GATT server
+  JournalMeta.*  pure helpers: session YAML, location format, word counts
 tools/
   flash_config.py       pre-build: bakes flash-config.txt + the version into the firmware
   merge_bin.py          post-build: one image for the web flasher (inkdeck-full.bin)

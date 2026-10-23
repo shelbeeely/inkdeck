@@ -121,11 +121,24 @@ void formatTime(char* out, size_t outsz) {
 }
 
 void formatIso(char* out, size_t outsz) {
-  struct tm t;
-  if (!localNow(t)) {
+  if (!valid()) {
     out[0] = '\0';
     return;
   }
+  formatIsoAt(time(nullptr), out, outsz);
+}
+
+void formatClockAt(int64_t when, char* out, size_t outsz) {
+  const time_t tt = static_cast<time_t>(when);
+  struct tm t;
+  localtime_r(&tt, &t);
+  strftime(out, outsz, "%H:%M:%S", &t);
+}
+
+void formatIsoAt(int64_t when, char* out, size_t outsz) {
+  const time_t tt = static_cast<time_t>(when);
+  struct tm t;
+  localtime_r(&tt, &t);
   // strftime's %z gives "+HHMM"; GitJournal writes "+HH:MM".
   char base[24];
   char zone[8];
