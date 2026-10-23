@@ -32,6 +32,14 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
     Home / End / PageUp / PageDown to move · Backspace / Delete to edit.
 - **Name entry** (new file/folder, rename) **requires a connected keyboard** —
   you'll be prompted to pair one first.
+- **Renaming a note updates links to it** in every other note, in the formats
+  GitJournal understands: `[[Old name]]`, `[[Old name|text]]`,
+  `[[folder/Old name]]`, `[text](../folder/Old%20name.md)` and
+  `[label]: Old%20name.md`. Links in code and front matter are left alone. If
+  another note has the same name, bare `[[Old name]]` links are ambiguous and
+  kept as they are (links with a path are still updated). Notes inside the
+  notes folder are updated when renaming a note there; elsewhere, the whole
+  card. Folder renames don't update links yet.
 - **Today's journal** (menu, or `T` in the browser) — opens `YYYY-MM-DD.md`
   for today in the notes folder, creating it with GitJournal front matter, and
   adds a `## HH:MM` heading for each writing session. Leaving without typing
@@ -241,6 +249,8 @@ src/
   WritingStats.* session and paragraph writing times, written into front matter
   PhoneLocation.* reads the session location from the phone's GATT server
   JournalMeta.*  pure helpers: session YAML, location format, word counts
+  Links.*        after a rename, rewrites links to the note across the notes
+  LinkRewrite.*  pure link rewriting (GitJournal's wiki/markdown link rules)
 tools/
   flash_config.py       pre-build: bakes flash-config.txt + the version into the firmware
   merge_bin.py          post-build: one image for the web flasher (inkdeck-full.bin)

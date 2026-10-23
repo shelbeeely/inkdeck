@@ -8,6 +8,7 @@
 #include "Clock.h"
 #include "Config.h"
 #include "Journal.h"
+#include "Links.h"
 #include "WritingStats.h"
 #include "SetupFlow.h"
 #include "SyncFlow.h"
@@ -422,6 +423,34 @@ static void commitName() {
   }
   loadDir();
   uiGotoScreen(AppScreen::Browser);
+
+  // Notes: point links to the old name at the new one.
+  const auto isNote = [](const char* p) {
+    const size_t n = strlen(p);
+    return n > 3 && strcmp(p + n - 3, ".md") == 0;
+  };
+  if (!st.isDir[st.menuTarget] && isNote(oldfull) && isNote(newfull) && strcmp(oldfull, newfull) != 0) {
+    showToast("Updating links...");
+    uiRenderNow();
+    const Links::Result r = Links::afterRename(oldfull, newfull);
+    char msg[64];
+    if (r.links) {
+      snprintf(msg, sizeof(msg), "Updated %u link%s in %u note%s", r.links, r.links == 1 ? "" : "s", r.notes,
+               r.notes == 1 ? "" : "s");
+    } else {
+      snprintf(msg, sizeof(msg), "Renamed (no links to it)");
+    }
+    if (r.skipped) {
+      const size_t n = strlen(msg);
+      snprintf(msg + n, sizeof(msg) - n, "; %u too big", r.skipped);
+    } else if (r.nameShared) {
+      const size_t n = strlen(msg);
+      snprintf(msg + n, sizeof(msg) - n, "; name used elsewhere");
+    }
+    showToast(msg);
+    g_state.toastUntil = millis() + 5000;
+    loadDir();
+  }
 }
 
 static void doDelete() {
