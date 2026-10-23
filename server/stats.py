@@ -86,6 +86,7 @@ def journal_sessions(root: Path) -> list[dict]:
                 "lon": None,
                 "place_tag": s.get("place_tag") or None,
                 "weather": s.get("weather") if isinstance(s.get("weather"), dict) else None,
+                "prompts": [str(x) for x in s.get("prompts") or [] if x] if isinstance(s.get("prompts"), list) else [],
             }
             loc = s.get("location")
             if isinstance(loc, dict) and "lat" in loc and "lon" in loc:
@@ -182,7 +183,7 @@ def compute(root: Path, today: dt.date | None = None) -> dict:
             "kind": e.get("detail") or "note",
             **{k: e.get(k, 0) for k in ("active_s", "keys", "words", "wpm", "typed", "deleted")},
             "pauses": 0, "longest_pause_s": 0, "longest_burst_s": 0, "first_key_s": 0, "revisions": 0,
-            "parts": [], "place": None, "lat": None, "lon": None, "place_tag": None, "weather": None,
+            "parts": [], "place": None, "lat": None, "lon": None, "place_tag": None, "weather": None, "prompts": [],
         })
     sessions.sort(key=lambda s: s["start"])
 

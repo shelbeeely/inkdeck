@@ -56,6 +56,25 @@ matter is flat `key: value` lines that the X4 reads; the body is a readable
 page in GitJournal. It's only committed when something other than its
 timestamp changed.
 
+**Prompts** (`prompts.py`): every refresh it writes
+`_inkdeck/prompts-suggested.txt`, which the X4 lists under "For you". It holds up
+to five prompts:
+
+- a look back at your entry from a week, month, six months or a year ago;
+- one matched to your latest check-in;
+- one from the kind of prompt you write most with;
+- a kind you haven't tried;
+- quick ones as a fallback.
+
+It also works out insights from your own data (prompted vs. plain sessions, and
+evening check-ins on journaling vs. non-journaling days), shown on the dashboard.
+The top insight goes into `companion.md` for the Pet screen. A finding is only
+stated when there's enough data and it holds, and only as what your journal
+shows. Answering a prompt (30+ words) earns 5 XP, and there are three prompt
+achievements: Prompted, Curious and Time traveler. The library is
+`prompts/library.txt` plus your `_inkdeck/prompts.txt`; set `PROMPTS_LIBRARY` to
+use another file.
+
 **Weather** (`WEATHER=on`): for each journal entry whose day is over and that
 hasn't changed for 2 hours, it asks [Open-Meteo](https://open-meteo.com) (free,
 no key) about that day where it was written (the phone location, else
@@ -105,5 +124,6 @@ python sample_data.py /tmp/sample-notes && NOTES_PATH=/tmp/sample-notes python a
   each git call and never written to disk. Commits are by "InkDeck Companion".
 - **Endpoints.** `/` dashboard, `/api/stats` the JSON behind it,
   `POST /api/refresh` fetch now, `/healthz`.
-- **Tests.** `python -m unittest` (stats, companion, enrichment).
+- **Tests.** `python -m unittest` (stats, companion, enrichment, prompts).
+- **Docker.** `compose.yaml` builds from the repository root, so the image includes `prompts/library.txt`.
 - **Settings.** All in `.env.example` and at the top of `app.py`.

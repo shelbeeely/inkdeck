@@ -15,6 +15,7 @@ server's unit tests. Needs `g++`, `python3` and `PyYAML`, and the
 | `usage_test.cpp` | usage CSV format/parse, streaks, totals, typing counters |
 | `linkrewrite_test.cpp` | link rewriting on rename (wiki + markdown links) |
 | `syncutil_test.cpp`, `url_test.cpp` | blob SHA-1, base64, escaping, sync decision table, repo URL parsing |
+| `prompts_test.cpp` | the real `prompts/library.txt` (valid unique ids, a why for each, fits a row), user files, today's prompt, entry text, session `prompts:` |
 | `companion_test.cpp` | parsing the server's `companion.md`, live fullness/mood, sprites |
 | `tree_test.cpp` | streaming git-tree parser on a real GitHub response, random chunking |
 
@@ -39,5 +40,8 @@ assume the repo is at `/home/user/inkdeck`.
   g++ -std=c++17 -O1 -I pet_stub -I stub -I ../../src -I ../../freeink-sdk/libs/ui/FreeInkUI/include \
     pet_harness.cpp ../../src/PetScreen.cpp ../../src/Companion.cpp ../../src/UsageStats.cpp \
     ../../src/JournalMeta.cpp ../../freeink-sdk/libs/ui/FreeInkUI/src/FreeInkUI.cpp -o pet
+  # Prompt picker (after `pio run`, for PromptLibrary.h):
+  #   prompt_harness.cpp ../../src/PromptScreen.cpp ../../src/Prompts.cpp ../../src/UsageStats.cpp ../../src/JournalMeta.cpp
+  #   + FreeInkUI.cpp, with -I ../../.pio/build/prompts; run: ph <notes> top.pgm on-category.pgm in-category.pgm
   # Stats: harness.cpp ../../src/StatsScreen.cpp ../../src/UsageStats.cpp ../../src/JournalMeta.cpp + FreeInkUI.cpp (no pet_stub)
   ```

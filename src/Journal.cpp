@@ -65,6 +65,8 @@ bool openToday(Document& doc, uint32_t& stubHash) {
 
 bool isUntouched(const Document& doc, uint32_t stubHash) { return stubHash != 0 && textHash(doc) == stubHash; }
 
+uint32_t stubHash(const Document& doc) { return textHash(doc); }
+
 void touchModified(Document& doc) {
   if (!Clock::valid()) return;
   char iso[32];

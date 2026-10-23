@@ -19,6 +19,8 @@ bool active();
 // After an edit that inserted and/or removed characters at the caret.
 void onEdit(const Document& doc, uint32_t inserted, uint32_t removed);
 void setLocation(const journalmeta::Fix& fix);
+// A journaling prompt was added to the entry this session (id from Prompts.h).
+void addPrompt(const char* id);
 // Before saving: writes/updates this session's record in doc's front matter.
 // No-op if nothing was typed.
 void writeInto(Document& doc);

@@ -77,6 +77,11 @@
   .badge.locked { opacity: 0.45; }
   .badge.on { border-color: var(--accent); }
   .wx { font-size: 0.85rem; color: var(--muted); }
+  h3.sub { font-size: 0.9rem; margin: 4px 0 8px; color: var(--muted); font-weight: 600; }
+  .insights { margin: 0 0 14px; padding-left: 18px; }
+  .insights li { margin-bottom: 6px; }
+  .suggestion { border-left: 3px solid var(--accent-2); padding: 2px 0 2px 10px; margin-bottom: 10px; }
+  .suggestion .muted { display: block; }
 </style>
 </head>
 <body>
@@ -89,6 +94,22 @@
   <div class="card companion" id="companion" hidden></div>
 
   <div class="grid tiles" id="tiles"></div>
+
+  <div class="card section" id="prompts-card" hidden>
+    <h2>Prompts</h2>
+    <div class="two grid">
+      <div>
+        <h3 class="sub">What your journal shows</h3>
+        <ul class="insights" id="insights"></ul>
+        <h3 class="sub">Picked for today</h3>
+        <div id="suggested"></div>
+      </div>
+      <div>
+        <div class="habits" id="prompt-tiles" style="margin-bottom:12px;grid-template-columns:repeat(2,minmax(0,1fr))"></div>
+        <table id="prompt-table"></table>
+      </div>
+    </div>
+  </div>
 
   <div class="card section" id="badges-card" hidden>
     <h2 id="badges-title">Achievements</h2>
@@ -322,6 +343,27 @@ function companionView(c) {
     `<span class="muted">${a.unlocked ? `Unlocked <span style="white-space:nowrap">${esc(a.unlocked)}</span>` : esc(a.description)}</span></div>`).join("");
 }
 
+function promptsView(p) {
+  if (!p) return;
+  $("prompts-card").hidden = false;
+  const u = p.usage;
+  $("insights").innerHTML = p.insights.length ? p.insights.map((i) => `<li>${esc(i)}</li>`).join("")
+    : `<li class="muted">Keep writing: once there are a few weeks of entries (and check-ins), this shows what journaling is doing for you.</li>`;
+  const today = [...(p.daily ? [{ ...p.daily, why: "Today's prompt (the same one the X4 shows). " + p.daily.why }] : []), ...p.suggestions];
+  $("suggested").innerHTML = today.map((s) => `<div class="suggestion">${esc(s.text)}<span class="muted">${esc(s.why)}</span></div>`).join("");
+  const more = u.avg_words_plain ? Math.round((u.avg_words_prompted - u.avg_words_plain) * 100 / u.avg_words_plain) : 0;
+  $("prompt-tiles").innerHTML = [
+    [num(u.prompted_sessions), `Sessions with a prompt (of ${num(u.prompted_sessions + u.plain_sessions)})`],
+    [num(u.avg_words_prompted), "Words, with a prompt"],
+    [num(u.avg_words_plain), "Words, without"],
+    [u.prompted_sessions && u.plain_sessions ? `${more > 0 ? "+" : ""}${more}%` : "–", "Difference"],
+  ].map(([v, k]) => `<div><b>${esc(v)}</b><span class="muted">${esc(k)}</span></div>`).join("");
+  $("prompt-table").innerHTML = u.prompts.length
+    ? "<tr><th>Most used prompts</th><th class=n>Times</th><th class=n>Avg words</th></tr>" +
+      u.prompts.slice(0, 8).map((x) => `<tr><td>${esc(x.text)}</td><td class=n>${x.sessions}</td><td class=n>${num(Math.round(x.words / x.sessions))}</td></tr>`).join("")
+    : `<tr><td class="muted">No prompts used yet. On the X4: Cmd/Ctrl+Shift+P in an entry, or Menu → Journal prompt. ${p.library_size} to choose from.</td></tr>`;
+}
+
 function weatherText(w) {
   if (!w) return "";
   const bits = [w.condition, w.temp_c != null ? `${w.temp_c}°C` : "", w.aqi != null ? `AQI ${w.aqi}` : "", w.light];
@@ -349,6 +391,7 @@ function dayView(sessions, iso, extra) {
     return `<div class="session"><b>${esc(s.start.slice(11, 16))}</b> <span class="muted">${esc(s.file)}${s.place ? " · " + esc(s.place) : ""}</span>
       <div class="muted">${num(s.words)} words · ${dur(s.active_s)} typing${s.wpm ? " · " + s.wpm + " wpm" : ""}${s.parts.length ? " · " + s.parts.length + " paragraphs" : ""}</div>
       ${s.weather ? `<div class="wx">${weatherText(s.weather)}</div>` : ""}
+      ${(s.prompts || []).length ? `<div class="wx">Prompt: ${s.prompts.map((id) => esc((promptText[id]) || id)).join(", ")}</div>` : ""}
       ${s.parts.length ? `<div class="timeline">${bars}</div>` : ""}</div>`;
   }).join("") + checks;
   if (head) $("day-sessions").insertAdjacentHTML("afterbegin", head);
@@ -382,6 +425,8 @@ function files(list) {
     list.map((f) => `<tr><td class="path">${esc(f.path)}</td><td class=n>${dur(f.active_s)}</td><td class=n>${num(f.words)}</td><td class=n>${f.sessions}</td></tr>`).join("");
 }
 
+let promptText = {};
+
 async function load() {
   let data;
   try {
@@ -398,6 +443,8 @@ async function load() {
   const pulled = data.pulled ? new Date(data.pulled * 1000) : new Date(data.generated);
   $("updated").textContent = `Updated ${pulled.toLocaleString()}`;
   companionView(data.companion);
+  promptText = Object.fromEntries((data.prompts?.usage.prompts || []).map((x) => [x.id, x.text]));
+  promptsView(data.prompts);
   tiles(data.totals, data.companion);
   calendar(data.days, data.today);
   daily(data.days, data.today);

@@ -79,6 +79,22 @@ void setLocation(const journalmeta::Fix& fix) {
   if (g_active) g_session.location = fix;
 }
 
+void addPrompt(const char* id) {
+  if (!g_active || !id || !*id) return;
+  char* list = g_session.prompts;
+  const size_t idLen = strlen(id);
+  for (const char* p = list; *p;) {  // already recorded?
+    const char* e = strchr(p, ',');
+    const size_t n = e ? static_cast<size_t>(e - p) : strlen(p);
+    if (n == idLen && memcmp(p, id, n) == 0) return;
+    p += n + (e ? 1 : 0);
+  }
+  const size_t used = strlen(list);
+  if (used + idLen + 2 > sizeof(g_session.prompts)) return;
+  if (used) list[used] = ',';
+  memcpy(list + used + (used ? 1 : 0), id, idLen + 1);
+}
+
 void writeInto(Document& doc) {
   if (!g_active || g_session.c.keys == 0 || !Clock::valid()) return;
   journalmeta::Session& s = g_session;

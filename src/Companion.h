@@ -24,6 +24,7 @@ struct Info {
   int32_t streak = 0, bestStreak = 0, restDaysLeft = 0, goal = 250, goalStreak = 0;
   int32_t achievements = 0, achievementsTotal = 0;
   char latestAchievement[48] = {0};
+  char insight[160] = {0};  // what your journal shows, e.g. "With a prompt you write 40% more..."
   char petName[24] = {0};
   char petState[8] = {0};   // egg | alive | asleep | gone
   char petStage[8] = {0};   // egg | baby | child | teen | adult

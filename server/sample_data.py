@@ -20,6 +20,8 @@ HEADER = "time,event,path,duration_s,active_s,keys,typed,deleted,words,wpm,batte
 def write(root: Path, days: int = 120, end: dt.date | None = None, seed: int = 7) -> None:
     rnd = random.Random(seed)
     extra = random.Random(seed + 1)  # weather and check-ins (kept separate so the rest stays the same)
+    sample_prompts = ["grat-three", "refl-high-low", "feel-name", "stress-control", "goal-week", "quick-best",
+                      "body-sleep", "ppl-who", "start-mind", "mem-child"]
     conditions = ["Clear", "Mostly clear", "Partly cloudy", "Overcast", "Light rain", "Rain", "Fog"]
     end = end or dt.date.today()
     (root / "_inkdeck" / "usage").mkdir(parents=True, exist_ok=True)
@@ -77,6 +79,9 @@ def write(root: Path, days: int = 120, end: dt.date | None = None, seed: int = 7
                 lines.append(f"    weather: {{temp_c: {extra.uniform(2, 24):.1f}, humidity: {extra.randint(40, 95)}, "
                              f"condition: \"{extra.choice(conditions)}\", aqi: {extra.randint(10, 90)}, "
                              f"light: \"{'dark' if start.hour < 7 or start.hour >= 19 else 'daylight'}\"}}")
+            prompt = extra.choice(sample_prompts) if extra.random() < 0.35 else None
+            if prompt:
+                lines.append(f"    prompts: [{prompt}]")
             lines.append("    parts:")
             lines += [f"      - {{start: \"{p['start']}\", end: \"{p['end']}\", active_s: {p['active_s']}, "
                       f"words: {p['words']}}}" for p in parts]

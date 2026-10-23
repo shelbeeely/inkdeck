@@ -18,6 +18,7 @@
 //       longest_burst_s: 140                  # longest stretch without a 5 s gap
 //       first_key_s: 6                        # from opening to the first keystroke
 //       revisions: 12                         # edits to earlier paragraphs
+//       prompts: [grat-three]                 # journaling prompts chosen (Prompts.h)
 //       location: {lat: 45.523100, lon: -122.676500, accuracy_m: 12, time: ..., source: phone, place: "Portland"}
 //       parts:                                # one per paragraph written, in order
 //         - {start: "14:32:10", end: "14:36:02", active_s: 140, words: 61}
@@ -83,6 +84,7 @@ struct Session {
   Fix location;
   char placeTag[32] = {0};   // named place the session was at ("Desk")
   char ambient[200] = {0};   // flow map from the phone ("{lux: 320, noise: \"chatter\"}")
+  char prompts[96] = {0};    // journaling prompt ids chosen this session, comma-separated
   Part parts[kMaxParts];
   uint8_t partCount = 0;
 };

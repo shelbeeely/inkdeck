@@ -2,7 +2,9 @@
 #   docker compose up -d        # dashboard on http://localhost:8080
 services:
   inkdeck-stats:
-    build: .
+    build:
+      context: ..                    # the repo root: the image includes prompts/library.txt
+      dockerfile: server/Dockerfile
     restart: unless-stopped
     ports:
       - "8080:8080"

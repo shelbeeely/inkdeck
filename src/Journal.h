@@ -17,6 +17,9 @@ namespace Journal {
 // drop the heading silently (see isUntouched).
 bool openToday(Document& doc, uint32_t& stubHash);
 bool isUntouched(const Document& doc, uint32_t stubHash);
+// The stub hash for `doc` as it is now: after adding a prompt to a fresh
+// session, so the entry still counts as untouched until you type.
+uint32_t stubHash(const Document& doc);
 
 // Refreshes the front matter `modified:` value before a save (no-op without
 // front matter or a valid clock).

@@ -147,6 +147,14 @@ size_t buildSessionYaml(const Session& s, int indent, FormatIso iso, FormatClock
     put(out, outsz, n, over, "%*sfirst_key_s: %lld\n", in, "", static_cast<long long>(c.firstKey - s.opened));
     put(out, outsz, n, over, "%*srevisions: %lu\n", in, "", static_cast<unsigned long>(c.revisions));
   }
+  if (s.prompts[0]) {
+    put(out, outsz, n, over, "%*sprompts: [", in, "");
+    for (const char* p = s.prompts; *p; ++p) {
+      if (*p == ',') put(out, outsz, n, over, ", ");
+      else put(out, outsz, n, over, "%c", *p);
+    }
+    put(out, outsz, n, over, "]\n");
+  }
   if (s.placeTag[0]) {
     char q[80];
     yamlQuote(s.placeTag, q, sizeof(q));

@@ -7,7 +7,9 @@ achievements and the journaling pet (companion.py).
 With WRITE_BACK=1 it also commits to the repository, as "InkDeck Companion":
   * _inkdeck/companion.md - pet, level, streaks, achievements; the X4 syncs it
     and shows it (the device only displays what the server works out);
-  * weather, sun and air quality in finished journal entries (enrich.py).
+  * weather, sun and air quality in finished journal entries (enrich.py);
+  * _inkdeck/prompts-suggested.txt - today's journaling prompts picked from
+    your journal (prompts.py); the X4 lists them under "For you".
 
 Environment:
   REPO_URL            git URL of the journal repo (https or ssh). Without it,
@@ -53,6 +55,7 @@ from pathlib import Path
 
 import companion
 import enrich
+import prompts
 import stats
 
 HERE = Path(__file__).resolve().parent
@@ -123,6 +126,15 @@ def _without_timestamp(text: str) -> str:
     return "\n".join(line for line in text.splitlines() if not line.startswith("updated: "))
 
 
+def write_if_changed(root: Path, rel: str, text: str) -> list[str]:
+    path = root / rel
+    if path.exists() and path.read_text(encoding="utf-8") == text:
+        return []
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return [rel]
+
+
 def write_companion(root: Path, comp: dict) -> list[str]:
     """Updates companion.md if anything but its timestamp changed."""
     path = root / companion.COMPANION_PATH
@@ -139,7 +151,9 @@ def commit_and_push(changed: list[str]) -> None:
     if not REPO_URL or not git("-C", str(NOTES_PATH), "status", "--porcelain").strip():
         return
     git("-C", str(NOTES_PATH), "add", "-A")
-    what = "update companion" if changed == [companion.COMPANION_PATH] else f"add weather to {len(changed)} files"
+    own = {companion.COMPANION_PATH, prompts.SUGGESTED_PATH}
+    entries = [c for c in changed if c not in own]
+    what = f"add weather to {len(entries)} entries" if entries else "update companion and prompts"
     git("-C", str(NOTES_PATH), *AUTHOR, "commit", "-q", "-m", f"InkDeck: {what}")
     try:
         git("-C", str(NOTES_PATH), "push", "-q", "origin", f"HEAD:{branch()}")
@@ -160,11 +174,17 @@ def refresh() -> None:
                 changed = enrich.run(root, HOME, dt.datetime.now().astimezone(), CACHE_PATH)
                 if changed:
                     data = stats.compute(root)  # now with the weather
+            pr = prompts.compute(root, data)
+            data["prompt_categories"] = pr.pop("categories")
+            data["prompt_insights"] = pr["insights"]
             comp = companion.compute(data, SETTINGS)
             if WRITE_BACK:
                 changed += write_companion(root, comp)
+                changed += write_if_changed(root, prompts.SUGGESTED_PATH, prompts.suggestions_file(pr["suggestions"]))
                 commit_and_push(changed)
             data["companion"] = comp
+            data["prompts"] = pr
+            del data["prompt_categories"]
             data["pulled"] = _cache["pulled"]
             _cache.update(json=json.dumps(data, default=str).encode(), at=time.time(), error=None)
         except subprocess.CalledProcessError as e:

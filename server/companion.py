@@ -6,7 +6,8 @@ the same repository always gives the same level, achievements and pet, so the
 server can recompute it at any time and nothing is lost if it restarts.
 
   XP        words/10 + 10 per session of 5+ active minutes + 15 per check-in
-            + 25 per day the daily goal was met + 50 per achievement
+            + 5 per prompt answered (30+ words) + 25 per day the daily goal
+            was met + 50 per achievement
   Level L   needs 50*L*(L-1) XP: level 2 at 100, 3 at 300, 4 at 600, ...
   Streak    consecutive writing days; up to `rest_days` missed days per
             (Monday-based) week are rest days that keep the streak alive.
@@ -63,6 +64,9 @@ ACHIEVEMENTS = {
     "sunrise_writer": ("First light", "Write around sunrise."),
     "explorer": ("Explorer", "Write in 5 different places."),
     "pet_adult": ("All grown up", "Raise your pet to adulthood."),
+    "prompted_5": ("Prompted", "Answer 5 journaling prompts."),
+    "curious": ("Curious", "Answer prompts from 6 different categories."),
+    "time_traveler": ("Time traveler", "Answer a look-back prompt about an old entry."),
 }
 
 
@@ -184,7 +188,9 @@ def compute(data: dict, settings: Settings | None = None, today: dt.date | None 
     unlocked: dict[str, str] = {}
     xp = 0
     log = []  # (date, xp gained, why) for the last days
-    totals = {"words": 0, "checkins": 0, "evening": 0}
+    totals = {"words": 0, "checkins": 0, "evening": 0, "prompts": 0}
+    prompt_cats: set = set()
+    categories = data.get("prompt_categories") or {}
     streak = best_streak = goal_streak = checkin_streak = 0
     rest_used: dict[tuple, int] = defaultdict(int)
     places: set = set()
@@ -206,6 +212,10 @@ def compute(data: dict, settings: Settings | None = None, today: dt.date | None 
         gained = words // 10
         gained += 10 * sum(1 for x in ss if x.get("active_s", 0) >= 300)
         gained += 15 * len(cs)
+        answered = [pid for x in ss if x.get("words", 0) >= 30 for pid in x.get("prompts") or []]
+        gained += 5 * len(answered)
+        totals["prompts"] += len(answered)
+        prompt_cats.update(categories.get(pid) or pid.split("-")[0] for pid in answered)
         goal_met = words >= s.daily_goal
         if goal_met:
             gained += 25
@@ -246,6 +256,12 @@ def compute(data: dict, settings: Settings | None = None, today: dt.date | None 
                 new += unlock(key, day)
         if goal_streak >= 7:
             new += unlock("goal_7", day)
+        if totals["prompts"] >= 5:
+            new += unlock("prompted_5", day)
+        if len(prompt_cats - {"revisit", "foryou"}) >= 6:
+            new += unlock("curious", day)
+        if any(pid.startswith("revisit-") for pid in answered):
+            new += unlock("time_traveler", day)
         for x in ss:
             h = x["start_dt"].hour
             w = x.get("words", 0)
@@ -333,6 +349,8 @@ def compute(data: dict, settings: Settings | None = None, today: dt.date | None 
         "latest": max(unlocked.items(), key=lambda kv: kv[1], default=(None, None))[0],
         "xp_log": log[::-1],
         "pet": pet_out,
+        "insight": (data.get("prompt_insights") or [""])[0],
+        "insights": list(data.get("prompt_insights") or []),
     }
 
 
@@ -463,6 +481,7 @@ def companion_markdown(c: dict, now: dt.datetime) -> str:
         f"achievements: {c['unlocked']}",
         f"achievements_total: {len(c['achievements'])}",
         f"latest_achievement: {_q(latest['title'] if latest else '')}",
+        f"insight: {_q(c.get('insight') or '')}",
         f"pet_name: {_q(p['name'])}",
         f"pet_state: {p['state']}",
         f"pet_stage: {p['stage']}",
@@ -502,8 +521,10 @@ def companion_markdown(c: dict, now: dt.datetime) -> str:
              f"{c['xp']} XP - {c['level_next'] - c['xp']} to level {c['level'] + 1} "
              f"`{bar(round((c['xp'] - c['level_start']) * 100 / span))}`", "",
              f"- Streak: {c['streak']} days (best {c['best_streak']}); rest days left this week: {c['rest_days_left']}",
-             f"- Today: {c['today_words']} / {c['goal']} words; goal streak {c['goal_streak']}",
-             "", f"## Achievements ({c['unlocked']}/{len(c['achievements'])})", ""]
+             f"- Today: {c['today_words']} / {c['goal']} words; goal streak {c['goal_streak']}"]
+    if c.get("insights"):
+        body += ["", "## What your journal shows", ""] + [f"- {line}" for line in c["insights"]]
+    body += ["", f"## Achievements ({c['unlocked']}/{len(c['achievements'])})", ""]
     for a in c["achievements"]:
         mark = "x" if a["unlocked"] else " "
         when = f" - {a['unlocked']}" if a["unlocked"] else ""

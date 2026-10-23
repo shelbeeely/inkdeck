@@ -1,0 +1,121 @@
+# InkDeck journaling prompts.
+#
+# Compiled into the firmware (tools/prompts_header.py) and read by the server.
+# Add your own in <notes>/_inkdeck/prompts.txt (same format; it syncs, so you
+# can edit it in GitJournal).
+#
+#   @ category-id | Category name | why this kind of writing helps
+#   prompt-id | the prompt | why it helps (shown while choosing)
+#
+# Prompt ids are lowercase letters, digits and dashes, and never change once
+# used: entries record them (sessions: prompts: [id]).
+
+@ start | Just start (2 minutes) | Small, concrete questions get the pen moving. Starting is the hard part.
+start-now | What's around you right now? Describe it in three sentences. | Describing the present is the easiest way in; no feelings required.
+start-mind | What's on your mind, in one sentence? Then keep going. | One sentence is a low bar, and it usually turns into more.
+start-today | What happened today, in the order it happened? | A plain list of events is enough. Patterns show up later.
+start-small-good | What's one small thing that went OK today? | Noticing small wins trains attention toward them.
+start-next | What's the next thing you have to do, and how do you feel about it? | Naming the next step often makes it lighter.
+start-word | Pick one word for today. Why that word? | One word is quick, and explaining it is where the insight is.
+start-ate | What did you eat today, and where? | Ordinary details anchor memories you'll be glad to have.
+start-listen | What did you hear someone say today that stuck with you? | Other people's words are an easy, vivid place to begin.
+
+@ gratitude | Gratitude | Writing down what you're grateful for is linked to better mood and sleep in several studies.
+grat-three | Three good things from today, and why each one happened. | The "why" is what makes this exercise work, not just the list.
+grat-person | Who made your life a little easier recently? What did they do? | Gratitude toward people strengthens the relationship, even unsent.
+grat-ordinary | What ordinary thing would you miss if it were gone? | Imagining its absence makes something familiar feel new again.
+grat-body | What did your body let you do today? | Shifts attention from how you look or feel to what you can do.
+grat-past-self | What did past-you do that present-you is thankful for? | Builds a kinder, more continuous relationship with yourself.
+grat-place | Describe a place you're glad exists. | Places hold memories and calm; writing about one revisits both.
+grat-unexpected | What surprised you in a good way this week? | Surprises are easy to forget unless you write them down.
+
+@ reflect | Looking back on the day | Reviewing the day helps turn experiences into lessons instead of a blur.
+refl-high-low | What was the high point and the low point of today? | Holding both keeps the picture honest.
+refl-energy | When did you have the most energy today? The least? | Over a few weeks this shows when you work and feel best.
+refl-again | If you could redo one moment today, which one, and what would you do? | Rehearsing a better response makes it more likely next time.
+refl-proud | What are you quietly proud of today? | Acknowledging effort, not just results, sustains motivation.
+refl-time | Where did your time actually go today? | Comparing intentions with reality is the first step to changing it.
+refl-learned | What did you learn today, however small? | Writing it down is what makes it stick.
+refl-tomorrow | What would make tomorrow a good day? | A small intention the night before makes the morning easier.
+
+@ feelings | Feelings | Putting feelings into words ("affect labeling") can make them less intense.
+feel-name | Name what you're feeling right now. Where do you notice it in your body? | Naming an emotion precisely can calm it.
+feel-under | What's underneath today's strongest feeling? | Anger or irritation often sits on top of something quieter.
+feel-weather | If your mood were weather, what would it be? Why? | A metaphor gives you distance from the feeling.
+feel-allowed | What feeling have you been trying not to feel? | What you avoid tends to grow; what you write tends to settle.
+feel-letter | Write to a feeling as if it were a visitor. What does it want? | Treating a feeling as a messenger makes it less overwhelming.
+feel-good | When did you feel most like yourself this week? | Tells you what to protect and do more of.
+feel-scale | On a scale of 1 to 10, how are you? What would make it one point higher? | Small, specific improvements are the ones that happen.
+
+@ stress | Untangling stress | Expressive writing about worries can reduce rumination and free up attention.
+stress-dump | Write down every worry in your head, without sorting them. | Getting worries out of your head frees attention for other things.
+stress-control | What part of this situation can you control, and what can't you? | Separating the two shows where effort is worth spending.
+stress-friend | What would you tell a friend in your situation? | We're often wiser and kinder about other people's problems.
+stress-worst | What's the worst that could realistically happen, and how would you cope? | Following a fear to the end usually shrinks it.
+stress-evidence | What's the thought that's bothering you? What's the evidence for and against it? | Questioning a thought (a core CBT skill) loosens its grip.
+stress-year | Will this matter in a year? What will? | Zooming out puts today's problem in proportion.
+stress-one-step | What's one small step you could take about it tomorrow? | Turning worry into an action ends the loop.
+
+@ goals | Goals and intentions | Writing goals down, with a first step, makes you more likely to act on them.
+goal-week | What would make this week feel successful? | A clear, small target beats a vague, big one.
+goal-why | Pick a goal you have. Why does it matter to you, really? | Goals tied to your own reasons are the ones you keep.
+goal-block | What's getting in the way of something you want? | Naming the obstacle is half of planning around it.
+goal-if-then | Finish this: "When ___ happens, I will ___." | If-then plans are one of the best-supported ways to build habits.
+goal-stop | What's something you could stop doing to make room? | Subtracting is often easier than adding.
+goal-progress | What progress have you made on something that matters, even a little? | Seeing progress is a strong motivator.
+goal-ideal-day | Describe an ideal ordinary day a year from now. | Concrete pictures of the future guide today's choices.
+
+@ people | People | Relationships are among the strongest predictors of wellbeing; writing helps you notice them.
+ppl-who | Who did you talk to today? How did each conversation leave you feeling? | Shows which relationships give you energy and which drain it.
+ppl-unsaid | What's something you wish you'd said to someone? | Writing it is a rehearsal, or a way to let it go.
+ppl-miss | Who do you miss? What would you tell them? | Keeps people close, and sometimes reminds you to reach out.
+ppl-thanks | Write a thank-you note to someone (you don't have to send it). | Gratitude letters lift mood, for the writer as well.
+ppl-conflict | Describe a disagreement from their point of view. | Perspective-taking makes conflicts easier to resolve.
+ppl-kind | What kind thing did you do or see today? | Noticing kindness makes you more likely to do it.
+
+@ body | Body and energy | Tracking sleep, food and movement next to how you feel shows what actually helps.
+body-sleep | How did you sleep, and what might have affected it? | Patterns in sleep are easy to see in writing, hard to see day to day.
+body-check | Scan from head to toe. What do you notice? | Brings attention back to the body, which stress pulls away from.
+body-move | How did you move today? How did it feel? | Connects activity and mood in your own words.
+body-fuel | What gave you energy today, and what took it away? | Over time this becomes your personal manual.
+body-rest | What does real rest look like for you? When did you last get it? | Knowing what restores you makes it easier to ask for.
+body-symptom | Is anything hurting or off? When did it start, and what makes it better or worse? | A written record is useful for you, and for any doctor or therapist.
+
+@ growth | Learning and growth | Reflecting on mistakes and lessons turns experience into skill.
+grow-mistake | What's a mistake you made recently, and what did it teach you? | Writing about mistakes without judgment helps you learn from them.
+grow-change | How are you different from a year ago? | Change is invisible day to day and obvious in writing.
+grow-advice | What advice would you give yourself from five years ago? | You know more than you think; this shows you what.
+grow-curious | What are you curious about right now? | Curiosity is a good guide to what to do next.
+grow-hard | What's something hard you did that you once couldn't? | Remembering past difficulty builds confidence for the next one.
+grow-belief | What's something you've changed your mind about? | Noticing changed beliefs keeps you open.
+
+@ memory | Memories and stories | Writing down stories keeps them, and revisiting good memories lifts mood.
+mem-child | Describe a place from your childhood in detail. | Sensory detail brings back far more than you expect.
+mem-first | Write about a "first" you remember: first job, first home, first trip. | Firsts are vivid, and a good way into your own story.
+mem-smell | What smell takes you somewhere? Where? | Smell is one of the strongest triggers of memory.
+mem-photo | Pick a photo you love. What isn't in the frame? | The story around the picture is the part you'll lose.
+mem-person | Tell a story about someone who shaped you. | Your history is made of people; this keeps them.
+mem-ordinary | What did an ordinary Tuesday look like ten years ago? | Ordinary days are the ones nobody remembers to record.
+
+@ create | Play and creativity | Low-stakes writing builds the habit, and play makes it something to look forward to.
+cre-list | Make a list of 10 things you'd do with a free day. | Lists are fast and fun, and say a lot about you.
+cre-object | Write the life story of an object near you. | A silly prompt is still writing, and the habit is what counts.
+cre-dialogue | Write a short conversation between you and your future self. | Dialogue unlocks thoughts that plain reflection doesn't.
+cre-letter-future | Write a letter to yourself to open in a year. | Something to look forward to, and a time capsule of now.
+cre-senses | Describe this moment with all five senses. | Grounds you in the present, a core mindfulness skill.
+cre-what-if | What if you had a completely free year? What would you do? | Big imaginings point at what you value.
+
+@ values | Values and meaning | Writing about what matters to you is linked to resilience under stress.
+val-matter | What matters most to you right now? Did today reflect it? | Shows the gap between values and days, gently.
+val-admire | Who do you admire, and what quality of theirs do you want more of? | Admiration is a map of your own values.
+val-enough | What would "enough" look like for you? | Defining enough is a defense against endless striving.
+val-energy | What do you do that makes you lose track of time? | Flow points to what you find meaningful.
+val-remember | How would you like the people close to you to describe you? | Keeps the long view in sight on ordinary days.
+val-say-no | What did you say yes to that you wanted to say no to? | Noticing it is the first step to protecting your time.
+
+@ quick | Tiny check-ins | When you have one minute: one line still counts, and it keeps the streak (and the pet) alive.
+quick-three-words | Three words for today. | One minute, and you still showed up.
+quick-best | Best part of today? | The fastest gratitude practice there is.
+quick-mood | Mood, energy and one reason for each. | A minute a day adds up to a clear picture over weeks.
+quick-one-thing | One thing you want to remember from today. | Future-you will be glad you wrote it down.
+quick-tomorrow | One thing for tomorrow. | Tiny plans are the ones that happen.

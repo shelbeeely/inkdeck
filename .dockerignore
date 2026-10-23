@@ -1,0 +1,7 @@
+# The server image is built from the repo root (server/compose.yaml) but needs
+# only these.
+*
+!server/
+!prompts/library.txt
+server/.env
+server/__pycache__/

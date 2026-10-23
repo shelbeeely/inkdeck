@@ -82,7 +82,11 @@ const char kTemplate[] =
     "location_every =\n"
     "\n"
     "# Writing times per session and paragraph in journal entries: on or off.\n"
-    "writing_stats =\n";
+    "writing_stats =\n"
+    "\n"
+    "# Offer a journaling prompt when Today's entry opens: ask (first session of\n"
+    "# the day), always, or off. Cmd/Ctrl+Shift+P picks one any time.\n"
+    "prompts =\n";
 
 }  // namespace
 
@@ -111,6 +115,7 @@ void Config::applyLine(char* line) {
   else if (strcmp(key, "location") == 0) locationFromPhone = strcmp(value, "phone") == 0;
   else if (strcmp(key, "location_every") == 0) locationEveryMin = static_cast<uint16_t>(constrain(atoi(value), 0, 1440));
   else if (strcmp(key, "writing_stats") == 0) writingStats = strcmp(value, "off") != 0;
+  else if (strcmp(key, "prompts") == 0) prompts = strcmp(value, "off") == 0 ? 0 : strcmp(value, "always") == 0 ? 2 : 1;
 }
 
 namespace {
@@ -204,7 +209,7 @@ bool Config::writeTemplateIfMissing() const {
 bool Config::isKnownKey(const char* key) {
   static const char* kKeys[] = {"wifi_ssid", "wifi_password", "timezone",     "notes_folder",  "journal_subfolder",
                                 "repo_url",  "branch",        "git_token",    "github_repo",   "github_branch",
-                                "github_token", "location",    "location_every", "writing_stats"};
+                                "github_token", "location",    "location_every", "writing_stats", "prompts"};
   for (const char* k : kKeys) {
     if (strcmp(k, key) == 0) return true;
   }

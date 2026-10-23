@@ -8,11 +8,12 @@ int main() {
   const char* doc =
       "---\ntype: InkDeckCompanion\nupdated: 2026-10-23T09:30:00-07:00\nlevel: 4\nxp: 963\nxp_level_start: 600\n"
       "xp_next: 1000\nstreak: 3\ngoal: 250\nlatest_achievement: \"One \\\"week\\\"\"\npet_name: \"Inkling\"\n"
-      "pet_state: alive\npet_stage: child\npet_form: \npet_mood: hungry\npet_says: \"My tummy is rumbling...\"\n"
+      "insight: \"With a prompt you write 40% more.\"\npet_state: alive\npet_stage: child\npet_form: \npet_mood: hungry\npet_says: \"My tummy is rumbling...\"\n"
       "pet_fullness: 10\npet_fullness_base: 10\npet_food_per_100_words: 28.0\npet_happiness: 40\npet_health: 70\n"
       "---\n\n# Inkling (o_o)\n\nlevel: 99\n";
   Info c;
   CHECK("parse", parse(doc, strlen(doc), c) && c.valid);
+  CHECK("insight", !strcmp(c.insight, "With a prompt you write 40% more."));
   CHECK("numbers", c.level == 4 && c.xp == 963 && c.xpNext == 1000 && c.streak == 3 && c.goal == 250);
   CHECK("body ignored", c.level == 4);
   CHECK("strings", !strcmp(c.petName, "Inkling") && !strcmp(c.latestAchievement, "One \"week\"") && c.petForm[0] == 0);

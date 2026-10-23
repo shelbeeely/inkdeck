@@ -153,9 +153,6 @@ void petScreen(ScreenT& s, void*) {
   const int32_t span = c->xpNext > c->xpLevelStart ? c->xpNext - c->xpLevelStart : 1;
   snprintf(line, sizeof(line), "Level %ld", static_cast<long>(c->level));
   meter(line, (c->xp - c->xpLevelStart) * 100 / span);
-  snprintf(line, sizeof(line), "%ld XP, %ld to level %ld", static_cast<long>(c->xp), static_cast<long>(c->xpNext - c->xp),
-           static_cast<long>(c->level + 1));
-  row("", line);
   snprintf(line, sizeof(line), "%ld day%s (best %ld), %ld rest left", static_cast<long>(c->streak),
            c->streak == 1 ? "" : "s", static_cast<long>(c->bestStreak), static_cast<long>(c->restDaysLeft));
   row("Streak", line);
@@ -165,6 +162,15 @@ void petScreen(ScreenT& s, void*) {
   snprintf(line, sizeof(line), "%ld of %ld%s%s", static_cast<long>(c->achievements),
            static_cast<long>(c->achievementsTotal), c->latestAchievement[0] ? ", latest: " : "", c->latestAchievement);
   row("Badges", line);
+  if (c->insight[0] && y + lineH * 2 <= body.bottom()) {
+    // Why bother: what your own journal shows (from the server, prompts.py).
+    TextStyle note = label;
+    note.maxLines = 2;
+    target.text(Rect{static_cast<int16_t>(body.x + 4), static_cast<int16_t>(y + 4), static_cast<int16_t>(body.width - 8),
+                     static_cast<int16_t>(lineH * 2 - 8)},
+                c->insight, note);
+    y = static_cast<int16_t>(y + lineH * 2);
+  }
   if (c->updated[0] && y + lineH <= body.bottom()) {
     snprintf(line, sizeof(line), "%.16s", c->updated);
     for (char* p = line; *p; ++p) {

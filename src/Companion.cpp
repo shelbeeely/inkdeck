@@ -42,6 +42,7 @@ void apply(Info& c, const char* key, size_t klen, const char* v, size_t vlen) {
   else if (is("achievements")) c.achievements = n;
   else if (is("achievements_total")) c.achievementsTotal = n;
   else if (is("latest_achievement")) copyValue(v, vlen, c.latestAchievement, sizeof(c.latestAchievement));
+  else if (is("insight")) copyValue(v, vlen, c.insight, sizeof(c.insight));
   else if (is("pet_name")) copyValue(v, vlen, c.petName, sizeof(c.petName));
   else if (is("pet_state")) copyValue(v, vlen, c.petState, sizeof(c.petState));
   else if (is("pet_stage")) copyValue(v, vlen, c.petStage, sizeof(c.petStage));

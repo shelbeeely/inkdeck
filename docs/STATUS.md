@@ -4,7 +4,7 @@ This is the hand-off document. Anyone (person or agent) picking the project up
 should be able to continue from here without the chat history. **Keep it
 current: update it in the same commit as any feature change.**
 
-Last updated: 2026-10-23 (pet + companion server), on branch `ccr-6bf7a05a-b0qao4` (not yet merged to `master`).
+Last updated: 2026-10-23 (journaling prompts), on branch `ccr-6bf7a05a-b0qao4` (not yet merged to `master`).
 
 **Resume here:** the next item is §5.1 (check-ins on the X4), then §5.2. Run `test/host/run.sh` and
 `pio run` first to confirm a green baseline.
@@ -31,6 +31,9 @@ and has a companion **server** (dashboard + enrichment + gamification).
 | `src/main.cpp` | setup/loop, Improv serial, settings handler, usage-log hooks, sleep |
 | `src/screens.cpp/.h`, `src/AppState.h` | all UI screens (browser, editor, menu, name entry, Sync, Setup, Stats) |
 | `src/StatsScreen.cpp` | Stats screen on the X4 |
+| `prompts/library.txt` | the journaling prompt library (84 prompts, 13 categories, each with a "why"); compiled into the firmware and read by the server |
+| `src/Prompts.*`, `src/PromptScreen.cpp` | **pure** prompt-library parser / today's prompt / entry text; the prompt picker screen |
+| `tools/prompts_header.py` | pre-build: `prompts/library.txt` → `.pio/build/prompts/PromptLibrary.h` |
 | `src/Companion.*`, `src/PetScreen.cpp` | **pure** parser for the server's `companion.md` + pet sprites; the Pet screen |
 | `src/Config.*` | settings (layers, keys, NVS storage) |
 | `src/Clock.*` | time zone, NTP, ISO formatting |
@@ -107,15 +110,39 @@ Format documented at the top of `src/JournalMeta.h`. Also supports `place_tag:` 
 ### 3.9 Pet screen (display only)
 - *Menu → Pet* reads `<notes>/_inkdeck/companion.md` (written by the server, synced like any note) and shows the
   pet as a 16×16 pixel sprite (bigger per stage; ears from teen; face per mood), its line, fullness/happiness/health
-  bars, level + XP bar, streak, today's words vs goal, badges, last update.
+  bars, level bar, streak, today's words vs goal, badges, the server's top **insight**, and the last update
+  (if there's room).
 - **Live feeding**: fullness = `pet_fullness_base + today's words × pet_food_per_100_words / 100` (never below the
   server's figure); a hungry pet shows as content once today's words lift it to 25+. Today's words come from the usage log.
 - Without the file it explains how to set up the server. Parser + sprites: `src/Companion.*` (host-tested).
 
-### 3.10 Settings keys (`/inkdeck.txt`, flasher, setup page)
+### 3.10 Journaling prompts (user request: about 40% of people don't know where to start; 32% see no benefit)
+- **Picker** (`PromptScreen.cpp`) opens over the editor:
+  - when Today opens and the setting `prompts` allows it: `ask` (default) = when the day's body is only the
+    `## HH:MM` heading (≤2 words); `always` = every session; `off` = never;
+  - **Cmd/Ctrl+Shift+P** in the editor;
+  - *Menu → Journal prompt* (opens Today, then the picker).
+- **Top level**:
+  - "Today's prompt" (`prompts::dailyIndex(days since 1970, count)`; stride 37 coprime with the count, so every
+    prompt comes up once per cycle, identical in `server/prompts.py`);
+  - "For you" (the server's `_inkdeck/prompts-suggested.txt`);
+  - "Surprise me";
+  - built-in categories with counts;
+  - "Your prompts" (`_inkdeck/prompts.txt`, ≤6 KB).
+- **Inside a category**, its prompts. A bottom panel shows the selected prompt in full and its **"Why: …"** line.
+- **Choosing a prompt**:
+  - inserts `> **Prompt:** <text>` at the caret, starting a new paragraph;
+  - calls `WritingStats::addPrompt(id)`, so the session gets `prompts: [id, …]` in front matter;
+  - re-stubs the entry (`Journal::stubHash`), so a fresh session with only a prompt and no writing is still
+    discarded on leaving.
+- The library is compiled in (≈11.6 KB flash); heap is used only while the picker is open (≈10 KB plus files).
+- Tested on the host: `test/host/prompts_test.cpp` (real library validity, parsing, daily cycle, entry text,
+  session YAML) and a host render (`test/render/prompt_harness.cpp`, image `docs/img/prompt-picker.png`).
+
+### 3.11 Settings keys (`/inkdeck.txt`, flasher, setup page)
 `wifi_ssid`, `wifi_password`, `timezone`, `notes_folder`, `journal_subfolder`, `repo_url` (alias `github_repo`),
 `branch` (alias `github_branch`), `git_token` (alias `github_token`), `location` (`phone`/`off`),
-`location_every`, `writing_stats` (`on`/`off`). `#` is a comment only at line start.
+`location_every`, `writing_stats` (`on`/`off`), `prompts` (`ask`/`always`/`off`). `#` is a comment only at line start.
 
 ## 4. Implemented features (server, `server/`)
 
@@ -142,10 +169,12 @@ computes; the X4 records raw data and displays results.
   If the push is rejected (the X4 pushed meanwhile), the next refresh redoes the work from the new head.
   Tested end to end against a local bare repo.
 - **Companion rules** (`companion.py` docstring + `server/README.md`):
-  - XP: words/10 + 10 per session of ≥5 active minutes + 15 per check-in + 25 per goal day + 50 per achievement.
+  - XP: words/10 + 10 per session of ≥5 active minutes + 15 per check-in + 5 per prompt answered (session ≥30
+    words) + 25 per goal day + 50 per achievement.
   - Level L needs 50·L·(L−1) XP.
   - Streak: `REST_DAYS` misses per ISO week are forgiven. Today never breaks a streak.
-  - 22 achievements (list in `ACHIEVEMENTS`), each with its unlock date.
+  - 25 achievements (list in `ACHIEVEMENTS`, including the prompt ones: prompted_5, curious = 6 categories,
+    time_traveler = a `revisit-` prompt), each with its unlock date.
   - **Pet**:
     - An egg arrives with the first writing day and hatches after 3 writing days.
     - Stages by days since hatching: baby, child 7, teen 21, adult 60.
@@ -156,6 +185,29 @@ computes; the X4 records raw data and displays results.
     - At 0 health: in `gentle` mode it hibernates (3 writing days to revive); in `classic` mode it is lost
       (kept in history) and a new egg comes with the next entry.
     - Moods: egg, happy, content, hungry, sad, sick, asleep, gone, each with an ASCII face and lines.
+- **Prompts** (`prompts.py`, tests in `test_prompts.py`):
+  - Library: `prompts/library.txt` (`PROMPTS_LIBRARY` overrides) plus the repo's `_inkdeck/prompts.txt`.
+  - **Usage**: per prompt and category, from session `prompts:`; prompted vs plain journal sessions' average words.
+  - **Insights**, only with enough data and only when the result holds (never a claim the data doesn't show):
+    - evening check-in `energy`/`stress`/`mood` on journaling vs non-journaling days (≥4 each, ≥0.3 apart, in
+      the good direction);
+    - prompted vs plain words (≥3 each, ≥10% more);
+    - the best category (≥2 categories used twice);
+    - days journaled out of the last 14;
+    - the word total.
+    The first insight becomes `companion.md`'s `insight:`; all appear in its body and on the dashboard.
+  - **Suggestions** (deterministic per day, skip prompts used in the last 14 days, max 5, at least 3):
+    1. look back at the entry from 365/182/30/7 days ago, quoting its first real sentence (id `revisit-<date>`);
+    2. latest check-in (≤2 days old): stress ≥4 → stress; sleep_h <6 → body-sleep; energy ≤2 → body;
+       social = 0 → people;
+    3. the best category;
+    4. an untried category;
+    5. quick/start prompts to fill up.
+    Written to `_inkdeck/prompts-suggested.txt` (library format, category `foryou`) with write-back, and
+    committed only when changed (about once a day).
+  - Dashboard **Prompts** card: insights, today's prompts with reasons, prompted vs plain tiles, the most used
+    prompts. The day view shows each session's prompt.
+  - Docker: `compose.yaml` builds from the repo root (`.dockerignore` keeps only `server/` and the library).
 - **Weather** (`enrich.py`):
   - Only touches entries whose day is over and whose `modified` is ≥2 h old, so it never collides with the X4.
   - Adds a session `weather:` flow map and a top-level `day:` block (`final: true`). The rest of the file is byte-identical.
@@ -205,6 +257,13 @@ computes; the X4 records raw data and displays results.
   today's words from the usage log/WritingStats.
 - Toast on sync when `latest_achievement` changed ("New badge: …").
 - Optional: pet face in the browser header or sleep screen.
+
+### 5.2b Prompt follow-ups (ideas, not built)
+- Show the "For you" reason on the Pet screen or as a toast after sync ("A year ago today you wrote…").
+- Number keys 1–9 to pick a row in the picker; type to filter prompts.
+- A monthly "look back" page from the server (best entries, most-used prompts, check-in trends) as a note in the repo.
+- Edit and add prompts from the dashboard (it would write `_inkdeck/prompts.txt`).
+- The `prompts` setting on the on-device Setup page (it's on the web flasher and in `/inkdeck.txt`).
 
 ### 5.3 Other environmental data
 - Phone **ambient** characteristic `ff3f0002-53df-4bf1-9794-eac66727467a`, value `1;key=value;…`, to session `ambient:`.
@@ -258,3 +317,9 @@ are in `test/web`, `test/improv`, `test/render`; see `test/README.md`.
   something besides `updated:` changes, to avoid needless syncs.
 - The X4 adds today's words to the pet's fullness locally, so feeding is visible before the next sync.
 - Pet default is `gentle` (hibernates rather than dies); `classic` is opt-in.
+- Prompts: one library file, compiled into the firmware (it works offline, with no server) and read by the
+  server, so ids and "today's prompt" agree everywhere. Every prompt has a "why" because the user's second
+  barrier is not seeing the benefit. Personal insights are descriptive ("on days you journal…"), never causal
+  claims, and are hidden until the data supports them.
+- A prompt goes into the entry as a visible quote (readable in GitJournal), and as an id in the session record
+  (for the stats).

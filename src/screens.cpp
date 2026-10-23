@@ -25,12 +25,13 @@ static constexpr uint8_t kModShift = 0x02 | 0x20;  // L/R Shift
 static constexpr uint8_t kModAlt = 0x04 | 0x40;    // L/R Alt / Option
 static constexpr uint8_t kModGui = 0x08 | 0x80;    // L/R Cmd / Win / GUI
 
-static const char* kMenuItems[] = {"Today's journal", "Sync",          "New file",      "New folder",
+static const char* kMenuItems[] = {"Today's journal", "Journal prompt", "Sync",          "New file",      "New folder",
                                    "Rename",          "Delete",        "Bluetooth",     "Orientation",
                                    "Set date/time",   "Setup over Wi-Fi", "Stats",         "Pet",
                                    "Forget HID devices"};
 enum MenuItem : int {
   kMenuToday,
+  kMenuPrompt,
   kMenuSync,
   kMenuNewFile,
   kMenuNewFolder,
@@ -300,6 +301,12 @@ static void openTodayJournal() {
   UsageLog::editBegin(st.doc, true);
   if (st.doc.truncated()) showToast("File too large; truncated");
   uiGotoScreen(AppScreen::Editor);
+  // Not sure where to start? Offer a prompt: on the day's first session
+  // (the body is just the "## HH:MM" heading), or every time.
+  const char* t = st.doc.text();
+  const uint32_t len = st.doc.length();
+  const bool firstToday = journalmeta::countWords(t, journalmeta::bodyStart(t, len), len) <= 2;
+  if (g_config.prompts == 2 || (g_config.prompts == 1 && firstToday)) promptsOpen();
 }
 
 // ---------------------------------------------------------------------------
@@ -720,6 +727,10 @@ static void editorKeyImpl(const KeyEvent& ev) {
       uiInvalidate(false);
       return;
     }
+    if (shift && c == 'p') {  // Cmd/Ctrl-Shift-P: journaling prompt picker
+      promptsOpen();
+      return;
+    }
     switch (ev.ch) {
       case '1':  // Cmd-1: H1
         d.prefixLines("# ");
@@ -982,6 +993,9 @@ static void uiNav(int delta) {
     case AppScreen::Editor:
       editorMoveVertical(delta);
       break;
+    case AppScreen::Prompts:
+      promptsNav(delta);
+      return;
     default:
       return;
   }
@@ -1000,6 +1014,10 @@ static void uiConfirm() {
       switch (g_state.menuSel) {
         case kMenuToday:
           openTodayJournal();
+          break;
+        case kMenuPrompt:
+          openTodayJournal();
+          if (g_state.screen == AppScreen::Editor) promptsOpen();
           break;
         case kMenuSync:
           runSync(true);
@@ -1075,6 +1093,9 @@ static void uiConfirm() {
     case AppScreen::Pet:
       leavePet();
       break;
+    case AppScreen::Prompts:
+      promptsConfirm();
+      break;
   }
 }
 
@@ -1120,6 +1141,9 @@ static void uiBack() {
       break;
     case AppScreen::Pet:
       leavePet();
+      break;
+    case AppScreen::Prompts:
+      promptsBack();
       break;
   }
 }

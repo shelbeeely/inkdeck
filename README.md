@@ -30,6 +30,7 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 - **Editor** — type markdown as plain text with soft word-wrap and a caret.
   - `Ctrl-S` save · `Esc` back to the browser (prompts if unsaved) · arrows /
     Home / End / PageUp / PageDown to move · Backspace / Delete to edit.
+  - `Cmd/Ctrl-Shift-P` pick a [journaling prompt](#journaling-prompts).
 - **Name entry** (new file/folder, rename) **requires a connected keyboard** —
   you'll be prompted to pair one first.
 - **Renaming a note updates links to it** in every other note, in the formats
@@ -98,6 +99,39 @@ including how to test with nRF Connect.
   reads your repo and charts it all: writing calendar, words and time per day,
   typing speed, weekday × hour, habits, places map, per-day timelines,
   battery and files.
+
+## Journaling prompts
+
+Not sure what to write? When Today's entry opens for the first time each day,
+InkDeck offers a prompt (*Back* skips it). You can also pick one any time with
+`Cmd/Ctrl-Shift-P`, or with *Menu → Journal prompt*.
+
+- **Today's prompt**: a different one each day, the same on the X4 and the
+  dashboard.
+- **For you**: up to five picked by the [server](server/README.md) from your own
+  journal. They include a look back at what you wrote on this day a week, month or
+  year ago (quoting your entry), and a prompt that fits your latest check-in (high
+  stress, little sleep, low energy). There's also one from the kind of prompt you
+  write most with, and a kind you haven't tried.
+- **Surprise me**, or **browse** about 85 prompts in 13 categories: Just start
+  (2 minutes), Gratitude, Looking back on the day, Feelings, Untangling stress,
+  Goals, People, Body and energy, Learning, Memories, Play, Values, and Tiny
+  check-ins. Each prompt says **why it helps**, shown as you scroll.
+- The prompt goes into the entry as a quote (`> **Prompt:** ...`), and its id is
+  recorded with the session (`prompts: [grat-three]`). If you leave without
+  writing, nothing is saved.
+- **Your own prompts**: add them to `<notes>/_inkdeck/prompts.txt` (same format
+  as [`prompts/library.txt`](prompts/library.txt)). It syncs, so you can edit it
+  in GitJournal.
+- **Does it help?** The server compares your own numbers and says what they show,
+  only once there's enough data:
+  - how much more you write with a prompt;
+  - your evening stress or energy on days you journal vs days you don't (from check-ins);
+  - which kinds of prompt you write most after.
+  The top finding is on *Menu → Pet*; all of them are on the dashboard.
+- Setting `prompts = ask` (the default; first session of the day), `always`, or `off`.
+
+![Prompt picker](docs/img/prompt-picker.png)
 
 ## Pet, levels and weather
 

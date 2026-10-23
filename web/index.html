@@ -187,7 +187,12 @@
           <option value="on">On</option>
           <option value="off">Off</option>
         </select>
-      </details>
+        <label for="prompts">Journaling prompts when Today opens</label>
+        <select id="prompts" name="prompts">
+          <option value="ask">Offer one (first session of the day)</option>
+          <option value="always">Offer one every session</option>
+          <option value="off">Off (Cmd/Ctrl+Shift+P still works)</option>
+        </select>
     </form>
     <p class="muted" style="margin-top:16px">These go straight to the X4 over the USB cable. Nothing is
       uploaded or saved by this page.</p>
@@ -263,7 +268,7 @@
   function settingsLines() {
     const lines = [];
     for (const name of ["repo_url", "git_token", "branch", "timezone", "wifi_ssid", "wifi_password",
-                        "notes_folder", "journal_subfolder", "location", "location_every", "writing_stats"]) {
+                        "notes_folder", "journal_subfolder", "location", "location_every", "writing_stats", "prompts"]) {
       const value = form.elements[name].value.replace(/[\r\n]/g, "").trim();
       if (value) lines.push(`${name} = ${value}`);
     }

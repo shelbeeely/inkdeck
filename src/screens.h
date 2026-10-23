@@ -32,6 +32,12 @@ void statsFree();
 void petScreen(ScreenT& s, void* user);
 bool petLoad();  // reads <notes>/_inkdeck/companion.md (from the server) for petScreen
 void petFree();
+void promptsScreen(ScreenT& s, void* user);
+bool promptsOpen();   // the prompt picker, over the open entry (returns to the editor)
+void promptsClose();
+void promptsNav(int delta);
+void promptsConfirm();
+void promptsBack();
 
 // --- Input (called from the main loop) ---
 void handleKey(const freeink::KeyEvent& ev);
