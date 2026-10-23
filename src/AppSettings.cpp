@@ -7,21 +7,33 @@ AppSettings g_settings;
 namespace {
 constexpr const char* kPrefsNs = "inkdeck";
 constexpr const char* kOrientationKey = "orient";
+constexpr const char* kAppliedKey = "orientCfg";
 }  // namespace
 
 void AppSettings::load() {
   Preferences prefs;
   if (!prefs.begin(kPrefsNs, true)) return;
-  orientation = prefs.getUChar(kOrientationKey, Portrait);
+  orientation = prefs.getUChar(kOrientationKey, LandscapeClockwise);
+  appliedSetting = prefs.getChar(kAppliedKey, -1);
   prefs.end();
-  if (orientation > LandscapeCounterClockwise) orientation = Portrait;
+  if (orientation > LandscapeCounterClockwise) orientation = LandscapeClockwise;
 }
 
 void AppSettings::save() const {
   Preferences prefs;
   if (!prefs.begin(kPrefsNs, false)) return;
   prefs.putUChar(kOrientationKey, orientation);
+  prefs.putChar(kAppliedKey, appliedSetting);
   prefs.end();
+}
+
+bool AppSettings::adoptSetting(int8_t value) {
+  if (value < 0 || value > LandscapeCounterClockwise || value == appliedSetting) return false;
+  appliedSetting = value;
+  const bool changed = orientation != static_cast<uint8_t>(value);
+  orientation = static_cast<uint8_t>(value);
+  save();
+  return changed;
 }
 
 freeink::ui::Orientation AppSettings::uiOrientation() const {

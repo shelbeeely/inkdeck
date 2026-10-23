@@ -28,6 +28,7 @@ struct Config {
   bool locationFromPhone = false;   // location = phone (off by default)
   uint16_t locationEveryMin = 15;   // fresh location at most this often
   bool writingStats = true;         // per-session writing times in journal entries
+  int8_t orientation = -1;          // portrait 0, landscape 1, portrait-flipped 2, landscape-flipped 3 (-1 = not set)
   uint8_t prompts = 1;              // journaling prompt picker on Today: 0 off, 1 ask (first session of the day), 2 always
 
   // Resets to the built-in defaults, then applies each layer above. Returns

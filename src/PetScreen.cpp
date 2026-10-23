@@ -75,6 +75,17 @@ void petScreen(ScreenT& s, void*) {
     return;
   }
 
+  // Landscape (the panel's native shape, and how it's used with a keyboard):
+  // the pet on the left, its numbers on the right. Portrait: one column.
+  const bool wide = body.width > body.height;
+  Rect pane = body;
+  Rect info = body;
+  if (wide) {
+    pane.width = static_cast<int16_t>(body.width * 2 / 5);
+    info.x = static_cast<int16_t>(body.x + pane.width + 12);
+    info.width = static_cast<int16_t>(body.width - pane.width - 12);
+  }
+
   // The pet, bigger as it grows up.
   const char* mood = companion::liveMood(*c, g_todayWords);
   uint16_t rows[16];
@@ -84,8 +95,8 @@ void petScreen(ScreenT& s, void*) {
   else if (strcmp(c->petStage, "teen") == 0) scale = 9;
   else if (strcmp(c->petStage, "adult") == 0) scale = 10;
   const int16_t box = 16 * 10;
-  const int16_t px = static_cast<int16_t>(body.x + (body.width - 16 * scale) / 2);
-  const int16_t py = static_cast<int16_t>(body.y + 10 + (box - 16 * scale));
+  const int16_t px = static_cast<int16_t>(pane.x + (pane.width - 16 * scale) / 2);
+  const int16_t py = static_cast<int16_t>(pane.y + 10 + (box - 16 * scale));
   for (int y = 0; y < 16; ++y) {
     for (int x = 0; x < 16; ++x) {
       if (rows[y] & (0x8000 >> x)) {
@@ -93,7 +104,7 @@ void petScreen(ScreenT& s, void*) {
       }
     }
   }
-  int16_t y = static_cast<int16_t>(body.y + 10 + box + 8);
+  int16_t y = static_cast<int16_t>(pane.y + 10 + box + 8);
 
   char line[128];
   TextStyle center = value;
@@ -111,23 +122,27 @@ void petScreen(ScreenT& s, void*) {
     snprintf(line, sizeof(line), "%s %s%s%s, %ld days old", mood, c->petStage, c->petForm[0] ? " " : "", c->petForm,
              static_cast<long>(c->petAgeDays));
   }
-  target.text(Rect{body.x, y, body.width, lineH}, line, center);
-  y = static_cast<int16_t>(y + lineH);
+  // The narrower landscape pane gets two lines for it.
+  const int16_t lines = wide ? 2 : 1;
+  center.maxLines = static_cast<uint8_t>(lines);
+  target.text(Rect{pane.x, y, pane.width, static_cast<int16_t>(lineH * lines - (lines - 1) * 10)}, line, center);
+  y = static_cast<int16_t>(y + lineH * lines - (lines - 1) * 10);
   if (c->petSays[0]) {
     snprintf(line, sizeof(line), "\"%s\"", c->petSays);
-    target.text(Rect{static_cast<int16_t>(body.x + 8), y, static_cast<int16_t>(body.width - 16),
+    target.text(Rect{static_cast<int16_t>(pane.x + 8), y, static_cast<int16_t>(pane.width - 16),
                      static_cast<int16_t>(lineH * 2)},
                 line, centerSmall);
     y = static_cast<int16_t>(y + lineH + lineH / 2);
   }
 
+  if (wide) y = static_cast<int16_t>(info.y + 16);
   const int16_t labelW = 128;
-  const int16_t barW = static_cast<int16_t>(body.width - labelW - 60);
+  const int16_t barW = static_cast<int16_t>(info.width - labelW - 60);
   auto meter = [&](const char* name, int32_t v) {
     if (v < 0) v = 0;
     if (v > 100) v = 100;
-    target.text(Rect{static_cast<int16_t>(body.x + 4), static_cast<int16_t>(y + 3), labelW, lineH}, name, label);
-    const Rect bar{static_cast<int16_t>(body.x + labelW), static_cast<int16_t>(y + lineH / 2 - 8), barW, 16};
+    target.text(Rect{static_cast<int16_t>(info.x + 4), static_cast<int16_t>(y + 3), labelW, lineH}, name, label);
+    const Rect bar{static_cast<int16_t>(info.x + labelW), static_cast<int16_t>(y + lineH / 2 - 8), barW, 16};
     target.stroke(bar, ink, 2, 4);
     const int16_t w = static_cast<int16_t>((barW - 6) * v / 100);
     if (w > 0) target.fill(Rect{static_cast<int16_t>(bar.x + 3), static_cast<int16_t>(bar.y + 3), w, 10}, ink, 2);
@@ -137,8 +152,8 @@ void petScreen(ScreenT& s, void*) {
     y = static_cast<int16_t>(y + lineH);
   };
   auto row = [&](const char* name, const char* text) {
-    target.text(Rect{static_cast<int16_t>(body.x + 4), static_cast<int16_t>(y + 3), labelW, lineH}, name, label);
-    target.text(Rect{static_cast<int16_t>(body.x + labelW), y, static_cast<int16_t>(body.width - labelW), lineH}, text,
+    target.text(Rect{static_cast<int16_t>(info.x + 4), static_cast<int16_t>(y + 3), labelW, lineH}, name, label);
+    target.text(Rect{static_cast<int16_t>(info.x + labelW), y, static_cast<int16_t>(info.width - labelW), lineH}, text,
                 value);
     y = static_cast<int16_t>(y + lineH);
   };
@@ -162,16 +177,16 @@ void petScreen(ScreenT& s, void*) {
   snprintf(line, sizeof(line), "%ld of %ld%s%s", static_cast<long>(c->achievements),
            static_cast<long>(c->achievementsTotal), c->latestAchievement[0] ? ", latest: " : "", c->latestAchievement);
   row("Badges", line);
-  if (c->insight[0] && y + lineH * 2 <= body.bottom()) {
+  if (c->insight[0] && y + lineH * 2 <= info.bottom()) {
     // Why bother: what your own journal shows (from the server, prompts.py).
     TextStyle note = label;
     note.maxLines = 2;
-    target.text(Rect{static_cast<int16_t>(body.x + 4), static_cast<int16_t>(y + 4), static_cast<int16_t>(body.width - 8),
+    target.text(Rect{static_cast<int16_t>(info.x + 4), static_cast<int16_t>(y + 4), static_cast<int16_t>(info.width - 8),
                      static_cast<int16_t>(lineH * 2 - 8)},
                 c->insight, note);
     y = static_cast<int16_t>(y + lineH * 2);
   }
-  if (c->updated[0] && y + lineH <= body.bottom()) {
+  if (c->updated[0] && y + lineH <= info.bottom()) {
     snprintf(line, sizeof(line), "%.16s", c->updated);
     for (char* p = line; *p; ++p) {
       if (*p == 'T') *p = ' ';

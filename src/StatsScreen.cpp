@@ -44,19 +44,28 @@ void statsScreen(ScreenT& s, void*) {
   const usage::Stats& st = *g_stats;
 
   Rect body = s.body();
+  // Landscape: the numbers on the left, the chart on the right. Portrait: stacked.
+  const bool wide = body.width > body.height;
+  Rect left = body;
+  Rect right = body;
+  if (wide) {
+    left.width = static_cast<int16_t>(body.width * 3 / 5);
+    right.x = static_cast<int16_t>(body.x + left.width + 16);
+    right.width = static_cast<int16_t>(body.width - left.width - 16);
+  }
   auto& target = s.frame().target();
   TextStyle label = g_theme.smallText;
   label.maxLines = 1;
   TextStyle value = g_theme.bodyText;
   value.maxLines = 1;
   const int16_t lineH = static_cast<int16_t>(target.lineHeight(value.font) + 10);
-  const int16_t labelW = 128;
+  const int16_t labelW = wide ? 124 : 128;
   int16_t y = static_cast<int16_t>(body.y + 12);
   char a[24], b[24], line[96];
 
   auto row = [&](const char* name, const char* text) {
-    target.text(Rect{static_cast<int16_t>(body.x + 4), static_cast<int16_t>(y + 3), labelW, lineH}, name, label);
-    target.text(Rect{static_cast<int16_t>(body.x + labelW), y, static_cast<int16_t>(body.width - labelW), lineH}, text, value);
+    target.text(Rect{static_cast<int16_t>(left.x + 4), static_cast<int16_t>(y + 3), labelW, lineH}, name, label);
+    target.text(Rect{static_cast<int16_t>(left.x + labelW), y, static_cast<int16_t>(left.width - labelW), lineH}, text, value);
     y = static_cast<int16_t>(y + lineH);
   };
 
@@ -94,15 +103,15 @@ void statsScreen(ScreenT& s, void*) {
   row("Keyboard", line);
 
   // When you write: active time by hour over the last 30 days.
-  y = static_cast<int16_t>(y + 10);
-  target.text(Rect{static_cast<int16_t>(body.x + 4), y, body.width, lineH}, "When you write (last 30 days)", label);
+  y = static_cast<int16_t>(wide ? right.y + 12 : y + 10);
+  target.text(Rect{static_cast<int16_t>(right.x + 4), y, right.width, lineH}, wide ? "When you write (30 days)" : "When you write (last 30 days)", label);
   y = static_cast<int16_t>(y + lineH);
-  const int16_t chartH = static_cast<int16_t>(body.bottom() - y - lineH - 8);
+  const int16_t chartH = static_cast<int16_t>(right.bottom() - y - lineH - 8);
   if (chartH < 30) return;
   uint32_t peak = 1;
   for (uint32_t v : st.hourActiveS) peak = v > peak ? v : peak;
-  const int16_t slot = static_cast<int16_t>((body.width - 8) / 24);
-  const int16_t x0 = static_cast<int16_t>(body.x + 4 + (body.width - 8 - slot * 24) / 2);
+  const int16_t slot = static_cast<int16_t>((right.width - 8) / 24);
+  const int16_t x0 = static_cast<int16_t>(right.x + 4 + (right.width - 8 - slot * 24) / 2);
   for (int h = 0; h < 24; ++h) {
     const int16_t barH = static_cast<int16_t>(static_cast<uint64_t>(st.hourActiveS[h]) * chartH / peak);
     const int16_t x = static_cast<int16_t>(x0 + h * slot);

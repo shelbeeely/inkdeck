@@ -9,6 +9,7 @@
 #include "WritingStats.h"
 #include <FreeInkApp.h>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
 #include <vector>
 using namespace freeink::ui;
@@ -29,10 +30,11 @@ int main(int argc, char** argv) {
   strncpy(g_config.notesFolder, argv[1], sizeof g_config.notesFolder - 1);
   const int16_t W = 800, H = 480;
   std::vector<uint8_t> fb(W / 8 * H, 0xFF);
-  DisplayTarget target(fb.data(), W, H, W / 8, Orientation::Portrait);
+  const bool land = getenv("LANDSCAPE") != nullptr;  // LANDSCAPE=1: landscape, buttons on the right
+  DisplayTarget target(fb.data(), W, H, W / 8, land ? Orientation::LandscapeClockwise : Orientation::Portrait);
   g_target = &target;
   g_theme = defaultThemeTokens(); g_theme.headerHeight = 52; g_theme.footerHeight = 48; g_theme.rowHeight = 46;
-  DeviceContext device = target.deviceContext(); device.safeArea = Insets{0, 0, g_theme.footerHeight, 0};
+  DeviceContext device = target.deviceContext(); device.safeArea = land ? Insets{0, 0, 0, g_theme.footerHeight} : Insets{0, 0, g_theme.footerHeight, 0};
   FreeInkApp<32, 8> app(target, device); app.setTheme(g_theme);
   promptsOpen();
   app.setScreen(promptsScreen); app.render(); dump(fb, W, H, argv[2]);

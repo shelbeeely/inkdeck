@@ -355,6 +355,7 @@ void setup() {
   g_config.load();  // baked-in + device-stored settings, plus /inkdeck.txt if the SD card is up
   Improv::setProvisioned(g_config.hasWifi());
   Clock::applyTimezone(g_config.timezone);  // the TZ env var doesn't survive deep sleep
+  if (g_settings.adoptSetting(g_config.orientation)) uiApplyOrientation();
   UsageLog::boot();
   BleHid.begin("InkDeck");
   refreshStatusLabel();
@@ -385,6 +386,7 @@ void loop() {
     g_config.load();
     Clock::applyTimezone(g_config.timezone);
     Improv::setProvisioned(g_config.hasWifi());
+    if (g_settings.adoptSetting(g_config.orientation)) uiApplyOrientation();
     showToast("Settings received");
   }
 

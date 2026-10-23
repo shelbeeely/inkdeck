@@ -275,7 +275,21 @@ void promptsScreen(ScreenT& s, void*) {
   why.maxLines = 3;
   const int16_t bodyLh = target.lineHeight(full.font);
   const int16_t smallLh = target.lineHeight(why.font);
-  const int16_t panelH = static_cast<int16_t>(bodyLh * 3 + smallLh * 3 + 28);
+  // Landscape: the list on the left, the selected prompt on the right.
+  // Portrait: the prompt in a panel under the list.
+  const bool wide = body.width > body.height;
+  const int16_t panelH = wide ? body.height : static_cast<int16_t>(bodyLh * 3 + smallLh * 3 + 28);
+  const int16_t panelW = wide ? static_cast<int16_t>(body.width * 2 / 5) : body.width;
+  Rect panel{static_cast<int16_t>(body.x + body.width - panelW), static_cast<int16_t>(body.bottom() - panelH), panelW,
+             panelH};
+  if (wide) {
+    // Narrow the list's content area, keeping the header's offset.
+    const Rect safe = s.frame().safeRect();
+    s.setContentMargin(Insets{static_cast<int16_t>(body.y - safe.y),
+                              static_cast<int16_t>(safe.x + safe.width - (body.x + body.width) + panelW + 8),
+                              static_cast<int16_t>(safe.y + safe.height - body.bottom()),
+                              static_cast<int16_t>(body.x - safe.x)});
+  }
 
   // Rows grow to two lines of prompt text; the full prompt is in the panel below.
   ListProps lp{};
@@ -285,8 +299,8 @@ void promptsScreen(ScreenT& s, void*) {
   lp.selectionMarker = SelectionMarker::Triangle;
   lp.labelText = g_theme.bodyText;
   lp.labelText.maxLines = 2;
-  Rect listArea = body;
-  listArea.height = static_cast<int16_t>(body.height - panelH);
+  Rect listArea = s.body();
+  if (!wide) listArea.height = static_cast<int16_t>(body.height - panelH);
   p.visible = listVisibleRows(listArea, static_cast<int16_t>(bodyLh * 2 + 14));
   p.top = listTopIndexFor(p.sel, p.top, p.visible, p.rowCount);
   lp.topIndex = p.top;
@@ -317,9 +331,15 @@ void promptsScreen(ScreenT& s, void*) {
     snprintf(text, sizeof(text), "Surprise me");
     snprintf(whyText, sizeof(whyText), "Any prompt from the library. Not sure where to start? This is a fine place.");
   }
-  int16_t y = static_cast<int16_t>(body.bottom() - panelH);
-  target.fill(Rect{body.x, static_cast<int16_t>(y + 4), body.width, 1}, Paint::solid(Color::Black));
-  const int16_t x = static_cast<int16_t>(body.x + 6), w = static_cast<int16_t>(body.width - 12);
+  int16_t y = panel.y;
+  if (wide) {
+    target.fill(Rect{static_cast<int16_t>(panel.x - 4), panel.y, 1, panel.height}, Paint::solid(Color::Black));
+    full.maxLines = 5;
+    why.maxLines = 6;
+  } else {
+    target.fill(Rect{panel.x, static_cast<int16_t>(y + 4), panel.width, 1}, Paint::solid(Color::Black));
+  }
+  const int16_t x = static_cast<int16_t>(panel.x + (wide ? 10 : 6)), w = static_cast<int16_t>(panel.width - (wide ? 16 : 12));
   y = static_cast<int16_t>(y + 12);
   // text() centres vertically in its rect, so each rect is exactly the text's height.
   auto block = [&](const char* t, const TextStyle& st, int16_t lh) {

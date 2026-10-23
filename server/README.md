@@ -7,6 +7,10 @@ added to your entries. The X4 records the raw data; the server does the
 thinking and writes the results back to the repo, where the X4 picks them up
 on its next sync.
 
+> **Planned:** this Python server is the reference implementation. It is to be
+> rewritten in Rust as a WebAssembly (WASI) component, talking to GitHub's API
+> instead of `git`; the plan is in [docs/STATUS.md §5.4](../docs/STATUS.md).
+
 ## Dashboard
 
 It shows charts of how

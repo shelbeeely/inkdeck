@@ -1,6 +1,7 @@
 #include "screens.h"
 #include "UsageLog.h"
 #include <FreeInkApp.h>
+#include <cstdlib>
 #include <fstream>
 #include <vector>
 using namespace freeink::ui;
@@ -28,10 +29,11 @@ bool UsageLog::load(usage::Stats& st, int32_t& today) {
 int main(int argc, char** argv) {
   const int16_t W = 800, H = 480, WB = W / 8;   // X4 panel (landscape native), shown portrait
   std::vector<uint8_t> fb(WB * H, 0xFF);
-  DisplayTarget target(fb.data(), W, H, WB, Orientation::Portrait);
+  const bool land = getenv("LANDSCAPE") != nullptr;  // LANDSCAPE=1: landscape, buttons on the right
+  DisplayTarget target(fb.data(), W, H, WB, land ? Orientation::LandscapeClockwise : Orientation::Portrait);
   g_target = &target;
   g_theme = defaultThemeTokens(); g_theme.headerHeight = 52; g_theme.footerHeight = 48; g_theme.rowHeight = 46;
-  DeviceContext device = target.deviceContext(); device.safeArea = Insets{0, 0, g_theme.footerHeight, 0};
+  DeviceContext device = target.deviceContext(); device.safeArea = land ? Insets{0, 0, 0, g_theme.footerHeight} : Insets{0, 0, g_theme.footerHeight, 0};
   FreeInkApp<32, 8> app(target, device); app.setTheme(g_theme);
   statsLoad();
   app.setScreen(statsScreen); app.render();

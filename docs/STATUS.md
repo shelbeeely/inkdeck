@@ -4,9 +4,10 @@ This is the hand-off document. Anyone (person or agent) picking the project up
 should be able to continue from here without the chat history. **Keep it
 current: update it in the same commit as any feature change.**
 
-Last updated: 2026-10-23 (journaling prompts), on branch `ccr-6bf7a05a-b0qao4` (not yet merged to `master`).
+Last updated: 2026-10-23 (landscape default; WASM server plan), on branch `ccr-6bf7a05a-b0qao4` (not yet merged to `master`).
 
-**Resume here:** the next item is §5.1 (check-ins on the X4), then §5.2. Run `test/host/run.sh` and
+**Resume here:** the next item is §5.1 (check-ins on the X4), then §5.2. The server rewrite to WebAssembly
+(§5.4) is planned and can be done in parallel. Run `test/host/run.sh` and
 `pio run` first to confirm a green baseline.
 
 ---
@@ -139,10 +140,29 @@ Format documented at the top of `src/JournalMeta.h`. Also supports `place_tag:` 
 - Tested on the host: `test/host/prompts_test.cpp` (real library validity, parsing, daily cycle, entry text,
   session YAML) and a host render (`test/render/prompt_harness.cpp`, image `docs/img/prompt-picker.png`).
 
-### 3.11 Settings keys (`/inkdeck.txt`, flasher, setup page)
+### 3.11 Orientation: landscape by default
+- Default is `LandscapeClockwise` (the panel is natively 800×480; with a keyboard, wide lines matter more than
+  height). The footer with the button labels moves to the side (`deviceFor()` in `main.cpp`).
+- Setting `orientation = landscape | landscape-flipped | portrait | portrait-flipped`
+  (flasher, `/inkdeck.txt`, baked).
+  - `AppSettings::adoptSetting()` applies it only when it differs from the value adopted last time (NVS key
+    `orientCfg`), so a choice in *Menu → Orientation* sticks until the setting changes.
+  - It is applied at boot after `g_config.load()` and when settings arrive from the flasher.
+- Screens with custom layouts check `body.width > body.height` and switch to two columns:
+  - Stats: numbers on the left (60%), hour chart on the right;
+  - Pet: the pet on the left (40%), its numbers on the right;
+  - prompt picker: list on the left, the selected prompt and its "why" on the right (40%), using
+    `setContentMargin` to narrow the list.
+  List screens and the editor adapt by themselves.
+- Verified with host renders in both orientations: set `LANDSCAPE=1` for `test/render/*harness`. The physical
+  framebuffer comes out rotated 180° in landscape; rotate it for viewing. Not yet checked on hardware: which
+  landscape direction is more comfortable with the X4's buttons (`landscape-flipped` is the other one).
+
+### 3.12 Settings keys (`/inkdeck.txt`, flasher, setup page)
 `wifi_ssid`, `wifi_password`, `timezone`, `notes_folder`, `journal_subfolder`, `repo_url` (alias `github_repo`),
 `branch` (alias `github_branch`), `git_token` (alias `github_token`), `location` (`phone`/`off`),
-`location_every`, `writing_stats` (`on`/`off`), `prompts` (`ask`/`always`/`off`). `#` is a comment only at line start.
+`location_every`, `writing_stats` (`on`/`off`), `prompts` (`ask`/`always`/`off`),
+`orientation` (`landscape`/`landscape-flipped`/`portrait`/`portrait-flipped`). `#` is a comment only at line start.
 
 ## 4. Implemented features (server, `server/`)
 
@@ -272,7 +292,61 @@ computes; the X4 records raw data and displays results.
   server (env `PLACES`), writing `place_tag` during enrichment. Not written.
 - Device-side weather fallback without a server: `src/OpenMeteo.*` is ready (tested), not wired into SyncFlow.
 
-### 5.4 Everything else
+### 5.4 Rewrite the server in something other than Python, as WebAssembly (requested; not started)
+The user asked to move the server off Python, ideally to WebAssembly. Plan and recommendation:
+
+**Recommendation: Rust, compiled to a WASI component (`wasm32-wasip2`), run by Spin (Fermyon) or `wasmtime serve`.**
+- One portable `.wasm` file runs anywhere a WASI runtime does: a NAS, a VPS, Fermyon Cloud, wasmCloud, or
+  Docker (`wasmtime` image). It is small, starts instantly, and is sandboxed: it can reach only the hosts it's
+  given (GitHub, Open-Meteo) and a key-value store.
+- Rust has the most mature WASI tooling (`wit-bindgen`, `spin-sdk`, `wasi` crates) and good JSON/YAML/date
+  crates (`serde_json`, a maintained YAML crate such as `serde_yaml_ng`/`yaml-rust2`, `jiff` with bundled tzdb).
+- The same core also compiles to `wasm32-unknown-unknown` (via `wasm-bindgen`) for the **browser**: see
+  "Dashboard without a server" below.
+- Alternatives considered:
+  - **C++ with wasi-sdk**: tempting, because it could reuse the firmware's pure modules (`Prompts`,
+    `JournalMeta`, `OpenMeteo`, `Companion`, `UsageStats`) and guarantee device/server parity. But HTTP,
+    YAML and dates are much weaker there. Worth doing for the shared pure bits if parity becomes a problem.
+  - **TinyGo**: reflection limits hurt YAML/JSON.
+  - **Zig / AssemblyScript**: thinner ecosystems.
+
+**The big design change: no `git` binary inside WASM.** The server would talk to the GitHub REST API the way
+the X4 already does:
+- read: `git/trees?recursive=1` plus blobs, fetching only changed blobs by SHA, like the X4's `.inkdeck-sync`;
+- write: the Git Data API, so one commit can carry several files (blobs → tree → commit → update ref).
+
+That also opens the door to other providers (Gitea/Forgejo/GitLab REST), shared with the device backlog (§5.5).
+
+**Phases**
+1. **Freeze behavior.** Generate golden JSON from the Python server for the sample data and the test cases:
+   `stats.compute`, `companion.compute`, `prompts.compute`, `enrich.enrich_text` before/after pairs.
+   Check them in under `server/golden/`; the new code must match them.
+2. **`inkdeck-core` crate** (no I/O):
+   - front-matter parsing and splicing, stats, companion (XP, achievements, pet), prompts (library parse,
+     `daily_index`, usage, insights, suggestions);
+   - enrichment text edits; Open-Meteo response → YAML.
+   Build targets: native (tests), `wasm32-wasip2`, `wasm32-unknown-unknown`.
+3. **Repo access**: a GitHub client over `wasi:http` (trees/blobs read with ETags; Git Data API write);
+   push-conflict retry (ref update rejected → refetch → recompute).
+4. **Host component** (Spin):
+   - HTTP routes `/`, `/api/stats`, `/api/refresh`, `/healthz`, with basic auth;
+   - a cron trigger instead of the refresher thread;
+   - Spin KV for the Open-Meteo cache and the last tree SHA;
+   - the same setting names as variables (`REPO_URL`, `GIT_TOKEN`, `WRITE_BACK`, `DAILY_GOAL`, …).
+5. **Dashboard without a server (optional)**: `dashboard/index.html` loads `inkdeck-core` in the browser,
+   reads the repo with the user's token through the GitHub API, and computes everything client-side. It could
+   then be a static page on GitHub Pages next to the web flasher. Only the scheduled write-back (companion,
+   suggestions, weather) would still need the WASI service.
+6. **Retire Python** once the golden tests pass and it has run side by side for a while. Replace the
+   Dockerfile with a `wasmtime serve` / Spin image and update `server/README.md`.
+
+**Risks**
+- YAML fidelity with GitJournal's front matter (keep the line-splicing approach for edits, as the firmware does).
+- GitHub API rate limits on large repos (5000 requests/hour per token; ETags plus only changed blobs).
+- `wasi:http` and Spin version churn.
+- Time zones in WASM (bundle tzdb, or rely on the offsets InkDeck already writes into every timestamp).
+
+### 5.5 Everything else
 - Other git providers (Gitea/Forgejo/GitLab/Bitbucket/Azure REST), or the server as a git bridge for the X4.
 - Link picker (`[[` / Ctrl-K), follow link (Ctrl-Enter), backlinks, and link updates when a folder is renamed.
 - Wi-Fi-scan location, and location settings on the on-device Setup page.
@@ -317,6 +391,10 @@ are in `test/web`, `test/improv`, `test/render`; see `test/README.md`.
   something besides `updated:` changes, to avoid needless syncs.
 - The X4 adds today's words to the pet's fullness locally, so feeding is visible before the next sync.
 - Pet default is `gentle` (hibernates rather than dies); `classic` is opt-in.
+- Landscape is the default (user request): the X4 is used with a keyboard. Custom screens lay out in two
+  columns when wide; the flasher setting only applies when it changes, so menu choices aren't reverted at boot.
+- Server language: the user wants it off Python, ideally WebAssembly (§5.4). Until that's done, the Python
+  server stays the reference implementation, and its tests become the golden tests for the rewrite.
 - Prompts: one library file, compiled into the firmware (it works offline, with no server) and read by the
   server, so ids and "today's prompt" agree everywhere. Every prompt has a "why" because the user's second
   barrier is not seeing the benefit. Personal insights are descriptive ("on days you journal…"), never causal

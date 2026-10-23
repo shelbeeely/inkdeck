@@ -187,6 +187,13 @@
           <option value="on">On</option>
           <option value="off">Off</option>
         </select>
+        <label for="orientation">Screen orientation</label>
+        <select id="orientation" name="orientation">
+          <option value="landscape">Landscape (for typing on a keyboard)</option>
+          <option value="landscape-flipped">Landscape, flipped</option>
+          <option value="portrait">Portrait</option>
+          <option value="portrait-flipped">Portrait, flipped</option>
+        </select>
         <label for="prompts">Journaling prompts when Today opens</label>
         <select id="prompts" name="prompts">
           <option value="ask">Offer one (first session of the day)</option>
@@ -268,7 +275,7 @@
   function settingsLines() {
     const lines = [];
     for (const name of ["repo_url", "git_token", "branch", "timezone", "wifi_ssid", "wifi_password",
-                        "notes_folder", "journal_subfolder", "location", "location_every", "writing_stats", "prompts"]) {
+                        "notes_folder", "journal_subfolder", "location", "location_every", "writing_stats", "prompts", "orientation"]) {
       const value = form.elements[name].value.replace(/[\r\n]/g, "").trim();
       if (value) lines.push(`${name} = ${value}`);
     }

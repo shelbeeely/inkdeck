@@ -22,6 +22,12 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 
 ## Using it
 
+- **Landscape by default** — the X4's panel is 800×480, and with a keyboard
+  landscape means wider lines and fewer wraps. The Stats, Pet and prompt screens
+  use two columns sideways and one column in portrait. Change it in *Menu →
+  Orientation*, or set `orientation = landscape | landscape-flipped | portrait |
+  portrait-flipped` on the web flasher or in `/inkdeck.txt` (the menu choice
+  sticks until that setting changes).
 - **Browser** — the SD card file list (folders first, then `.md` files). Navigate
   with the device buttons or a connected keyboard's arrows/Enter; `Back` leaves a
   folder.
