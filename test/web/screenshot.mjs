@@ -1,0 +1,13 @@
+import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+const [url, out, w, scheme] = process.argv.slice(2);
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const p = await b.newPage({ viewport: { width: +w, height: 900 }, colorScheme: scheme || "light" });
+const errs = []; p.on("pageerror", e => errs.push(String(e))); p.on("console", m => m.type() === "error" && errs.push(m.text()));
+await p.goto(url, { waitUntil: "networkidle" });
+await p.waitForTimeout(1500);
+const defined = await p.evaluate(() => !!customElements.get("esp-web-install-button"));
+const serial = await p.evaluate(() => "serial" in navigator);
+const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+await p.screenshot({ path: out, fullPage: true });
+console.log(JSON.stringify({ defined, serial, overflow, errs }));
+await b.close();

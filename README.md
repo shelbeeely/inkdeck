@@ -242,6 +242,11 @@ For SDK development, an untracked `platformio.local.ini` can override the
 `lib_deps` with absolute symlinks to a separate SDK working copy, so SDK changes
 iterate without touching the submodule.
 
+## Status and roadmap
+
+What is done, what is not, and how to pick the work up: [docs/STATUS.md](docs/STATUS.md).
+Host tests: `test/host/run.sh`.
+
 ## Layout
 
 ```

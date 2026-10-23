@@ -1,0 +1,12 @@
+import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+const [out, w, scheme] = process.argv.slice(2);
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const ctx = await b.newContext({ viewport: { width: +w, height: 900 }, colorScheme: scheme, httpCredentials: { username: "me", password: "secret" }, timezoneId: "America/Los_Angeles" });
+const p = await ctx.newPage();
+const errs = []; p.on("pageerror", (e) => errs.push(String(e))); p.on("console", (m) => m.type() === "error" && errs.push(m.text()));
+await p.goto("http://localhost:8790/", { waitUntil: "networkidle" });
+await p.waitForTimeout(2500);
+const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+await p.screenshot({ path: out, fullPage: true });
+console.log(JSON.stringify({ overflow, errs: errs.filter((e) => !/tile\.openstreetmap/.test(e)) }));
+await b.close();

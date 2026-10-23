@@ -147,6 +147,12 @@ size_t buildSessionYaml(const Session& s, int indent, FormatIso iso, FormatClock
     put(out, outsz, n, over, "%*sfirst_key_s: %lld\n", in, "", static_cast<long long>(c.firstKey - s.opened));
     put(out, outsz, n, over, "%*srevisions: %lu\n", in, "", static_cast<unsigned long>(c.revisions));
   }
+  if (s.placeTag[0]) {
+    char q[80];
+    yamlQuote(s.placeTag, q, sizeof(q));
+    put(out, outsz, n, over, "%*splace_tag: \"%s\"\n", in, "", q);
+  }
+  if (s.ambient[0]) put(out, outsz, n, over, "%*sambient: %s\n", in, "", s.ambient);
   if (s.location.valid) {
     iso(s.location.time, a, sizeof(a));
     put(out, outsz, n, over, "%*slocation: {lat: %.6f, lon: %.6f, accuracy_m: %lu, time: %s, source: %s", in, "",
@@ -172,27 +178,40 @@ size_t buildSessionYaml(const Session& s, int indent, FormatIso iso, FormatClock
 }
 
 bool findSessionBlock(const char* doc, uint32_t len, const char* startIso, Splice& out) {
-  out = Splice();
-  if (len < 8 || strncmp(doc, "---\n", 4) != 0) return false;
-  // Closing "---" line.
-  uint32_t close = 0;
-  for (uint32_t p = 4; p + 3 <= len; p = lineEnd(doc, len, p) + 1) {
-    if (strncmp(doc + p, "---", 3) == 0 && (p + 3 == len || doc[p + 3] == '\n' || doc[p + 3] == '\r')) {
-      close = p;
-      break;
-    }
-    if (lineEnd(doc, len, p) >= len) return false;
-  }
-  if (!close) return false;
+  return findListItem(doc, len, "sessions", "start", startIso, out);
+}
 
-  // "sessions:" at column 0.
-  uint32_t key = 0;
-  for (uint32_t p = 4; p < close; p = lineEnd(doc, len, p) + 1) {
-    if (strncmp(doc + p, "sessions:", 9) == 0) {
-      key = p;
-      break;
-    }
+uint32_t lineEndAt(const char* s, uint32_t len, uint32_t p) { return lineEnd(s, len, p); }
+
+namespace {
+
+// Offset of the closing "---" line, 0 without front matter.
+uint32_t frontMatterClose(const char* doc, uint32_t len) {
+  if (len < 8 || strncmp(doc, "---\n", 4) != 0) return 0;
+  for (uint32_t p = 4; p + 3 <= len; p = lineEnd(doc, len, p) + 1) {
+    if (strncmp(doc + p, "---", 3) == 0 && (p + 3 == len || doc[p + 3] == '\n' || doc[p + 3] == '\r')) return p;
+    if (lineEnd(doc, len, p) >= len) return 0;
   }
+  return 0;
+}
+
+// Offset of a top-level "key:" line before `close`, 0 if absent.
+uint32_t topKey(const char* doc, uint32_t len, uint32_t close, const char* key) {
+  const size_t k = strlen(key);
+  for (uint32_t p = 4; p < close; p = lineEnd(doc, len, p) + 1) {
+    if (strncmp(doc + p, key, k) == 0 && doc[p + k] == ':') return p;
+  }
+  return 0;
+}
+
+}  // namespace
+
+bool findListItem(const char* doc, uint32_t len, const char* listKey, const char* headKey, const char* headValue,
+                  Splice& out) {
+  out = Splice();
+  const uint32_t close = frontMatterClose(doc, len);
+  if (!close) return false;
+  const uint32_t key = topKey(doc, len, close, listKey);
   if (!key) {
     out.from = out.to = close;
     out.needsKey = true;
@@ -214,9 +233,9 @@ bool findSessionBlock(const char* doc, uint32_t len, const char* startIso, Splic
   }
   out.indent = indent < 0 ? 2 : indent;
 
-  // Our item: "<indent>- start: <startIso>", up to the next item at that indent.
-  char head[64];
-  snprintf(head, sizeof(head), "%*s- start: %s", out.indent, "", startIso);
+  // The item: "<indent>- <headKey>: <headValue>", up to the next item at that indent.
+  char head[96];
+  snprintf(head, sizeof(head), "%*s- %s: %s", out.indent, "", headKey, headValue);
   const size_t headLen = strlen(head);
   for (uint32_t p = listStart; p < listEnd; p = lineEnd(doc, len, p) + 1) {
     if (strncmp(doc + p, head, headLen) == 0 && (doc[p + headLen] == '\n' || doc[p + headLen] == '\r')) {
@@ -224,7 +243,7 @@ bool findSessionBlock(const char* doc, uint32_t len, const char* startIso, Splic
       while (q < listEnd) {
         int i = 0;
         while (doc[q + i] == ' ') ++i;
-        if (i <= out.indent && doc[q + i] == '-' ) break;
+        if (i <= out.indent && doc[q + i] == '-') break;
         q = lineEnd(doc, len, q) + 1;
       }
       out.from = p;
@@ -234,6 +253,124 @@ bool findSessionBlock(const char* doc, uint32_t len, const char* startIso, Splic
   }
   out.from = out.to = listEnd;
   return true;
+}
+
+bool findTopBlock(const char* doc, uint32_t len, const char* key, Splice& out) {
+  out = Splice();
+  const uint32_t close = frontMatterClose(doc, len);
+  if (!close) return false;
+  const uint32_t at = topKey(doc, len, close, key);
+  if (!at) {
+    out.from = out.to = close;
+    return true;
+  }
+  uint32_t end = lineEnd(doc, len, at) + 1;
+  while (end < close && doc[end] == ' ') end = lineEnd(doc, len, end) + 1;
+  out.from = at;
+  out.to = end;
+  return true;
+}
+
+void findItemLine(const char* doc, uint32_t itemFrom, uint32_t itemTo, int indent, const char* key, Splice& out) {
+  out = Splice();
+  out.indent = indent;
+  const size_t k = strlen(key);
+  const int in = indent + 2;
+  uint32_t partsAt = 0;
+  for (uint32_t p = lineEnd(doc, itemTo, itemFrom) + 1; p < itemTo; p = lineEnd(doc, itemTo, p) + 1) {
+    int i = 0;
+    while (p + i < itemTo && doc[p + i] == ' ') ++i;
+    if (i != in) continue;
+    if (strncmp(doc + p + i, key, k) == 0 && doc[p + i + k] == ':') {
+      out.from = p;
+      out.to = lineEnd(doc, itemTo, p) + 1;
+      return;
+    }
+    if (strncmp(doc + p + i, "parts:", 6) == 0) partsAt = p;
+  }
+  out.from = out.to = partsAt ? partsAt : itemTo;
+}
+
+bool itemValue(const char* doc, uint32_t from, uint32_t to, int indent, const char* key, char* out, size_t outsz) {
+  Splice sp;
+  findItemLine(doc, from, to, indent, key, sp);
+  if (sp.from == sp.to) return false;
+  const char* v = doc + sp.from + indent + 2 + strlen(key) + 1;
+  const char* e = doc + sp.to;
+  while (v < e && *v == ' ') ++v;
+  while (e > v && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ')) --e;
+  size_t n = static_cast<size_t>(e - v);
+  if (n >= outsz) n = outsz - 1;
+  memcpy(out, v, n);
+  out[n] = '\0';
+  return true;
+}
+
+bool flowLatLon(const char* flow, double& lat, double& lon) {
+  const char* a = strstr(flow, "lat:");
+  const char* b = strstr(flow, "lon:");
+  return a && b && sscanf(a + 4, "%lf", &lat) == 1 && sscanf(b + 4, "%lf", &lon) == 1;
+}
+
+bool parseAmbient(const char* text, size_t len, char* out, size_t outsz) {
+  if (len < 2 || text[0] != '1' || text[1] != ';') return false;
+  size_t o = 0;
+  bool any = false;
+  auto put = [&](const char* s, size_t n) {
+    if (o + n + 2 >= outsz) return false;
+    memcpy(out + o, s, n);
+    o += n;
+    return true;
+  };
+  put("{", 1);
+  size_t i = 2;
+  while (i < len) {
+    size_t j = i;
+    while (j < len && text[j] != ';') ++j;
+    const char* eq = static_cast<const char*>(memchr(text + i, '=', j - i));
+    if (eq) {
+      // key: [a-z0-9_] only
+      char key[24];
+      size_t kn = 0;
+      for (const char* c = text + i; c < eq && kn + 1 < sizeof(key); ++c) {
+        const char ch = (*c >= 'A' && *c <= 'Z') ? static_cast<char>(*c + 32) : *c;
+        if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_') key[kn++] = ch;
+      }
+      key[kn] = '\0';
+      const char* v = eq + 1;
+      size_t vn = static_cast<size_t>(text + j - v);
+      while (vn && (v[vn - 1] == '\n' || v[vn - 1] == '\r' || v[vn - 1] == ' ')) --vn;
+      if (kn && vn) {
+        char val[64];
+        if (vn >= sizeof(val)) vn = sizeof(val) - 1;
+        memcpy(val, v, vn);
+        val[vn] = '\0';
+        char* end = nullptr;
+        strtod(val, &end);
+        const bool number = end && *end == '\0';
+        char item[112];
+        int n;
+        if (number) {
+          n = snprintf(item, sizeof(item), "%s%s: %s", any ? ", " : "", key, val);
+        } else {
+          char q[80];
+          size_t qo = 0;
+          for (size_t c = 0; c < vn && qo + 2 < sizeof(q); ++c) {
+            if (static_cast<unsigned char>(val[c]) < 0x20) continue;
+            if (val[c] == '"' || val[c] == '\\') q[qo++] = '\\';
+            q[qo++] = val[c];
+          }
+          q[qo] = '\0';
+          n = snprintf(item, sizeof(item), "%s%s: \"%s\"", any ? ", " : "", key, q);
+        }
+        if (n > 0 && put(item, static_cast<size_t>(n))) any = true;
+      }
+    }
+    i = j + 1;
+  }
+  put("}", 1);
+  out[o] = '\0';
+  return any;
 }
 
 uint32_t countWords(const char* s, uint32_t from, uint32_t to) {

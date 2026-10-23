@@ -81,6 +81,8 @@ struct Session {
   int32_t words = 0;  // words added (can be negative after heavy editing)
   Counters c;
   Fix location;
+  char placeTag[32] = {0};   // named place the session was at ("Desk")
+  char ambient[200] = {0};   // flow map from the phone ("{lux: 320, noise: \"chatter\"}")
   Part parts[kMaxParts];
   uint8_t partCount = 0;
 };
@@ -103,6 +105,29 @@ struct Splice {
   int indent = 2;  // match the list's existing indentation
 };
 bool findSessionBlock(const char* doc, uint32_t len, const char* startIso, Splice& out);
+// The same for any front matter list ("checkins"), keyed by `headKey`; a
+// value that matches nothing gives the list's end (to append).
+bool findListItem(const char* doc, uint32_t len, const char* listKey, const char* headKey, const char* headValue,
+                  Splice& out);
+// A top-level "key:" block (its line plus indented lines after it), or
+// where a new one goes (before the closing ---).
+bool findTopBlock(const char* doc, uint32_t len, const char* key, Splice& out);
+// A "key:" line directly inside the list item [itemFrom, itemTo) whose "-" is
+// at `indent`, or where a new one goes (before "parts:", else at the end).
+void findItemLine(const char* doc, uint32_t itemFrom, uint32_t itemTo, int indent, const char* key, Splice& out);
+
+// Calls fn(startIso, itemFrom, itemTo, indent) for each "sessions:" item.
+template <typename Fn>
+void forEachSession(const char* doc, uint32_t len, Fn fn);
+
+// Value text of `key:` on a line inside [from, to) (copied, trimmed); false if absent.
+bool itemValue(const char* doc, uint32_t from, uint32_t to, int indent, const char* key, char* out, size_t outsz);
+// "lat: 45.5, lon: -122.6" inside a flow map.
+bool flowLatLon(const char* flow, double& lat, double& lon);
+
+// Phone ambient characteristic ("1;lux=320;noise_db=48;noise=chatter") as a
+// YAML flow map; numbers stay bare, other values are quoted. False if empty.
+bool parseAmbient(const char* text, size_t len, char* out, size_t outsz);
 
 // Words (runs of non-space) in [from, to).
 uint32_t countWords(const char* s, uint32_t from, uint32_t to);
@@ -110,5 +135,44 @@ uint32_t countWords(const char* s, uint32_t from, uint32_t to);
 void paragraphBounds(const char* s, uint32_t len, uint32_t pos, uint32_t& from, uint32_t& to);
 // Offset where the body starts (after the front matter), 0 without one.
 uint32_t bodyStart(const char* doc, uint32_t len);
+
+// Line end helper for the template below.
+uint32_t lineEndAt(const char* s, uint32_t len, uint32_t p);
+
+template <typename Fn>
+void forEachSession(const char* doc, uint32_t len, Fn fn) {
+  Splice list;
+  if (!findListItem(doc, len, "sessions", "start", "\x01", list) || list.needsKey) return;
+  // Walk back from the list end to the "sessions:" line, then forward item by item.
+  uint32_t key = 0;
+  for (uint32_t p = 4; p < list.from; p = lineEndAt(doc, len, p) + 1) {
+    if (len - p >= 9 && doc[p] == 's' && __builtin_memcmp(doc + p, "sessions:", 9) == 0) key = p;
+  }
+  if (!key) return;
+  uint32_t p = lineEndAt(doc, len, key) + 1;
+  while (p < list.from) {
+    const uint32_t e = lineEndAt(doc, len, p);
+    int i = 0;
+    while (doc[p + i] == ' ') ++i;
+    if (i == list.indent && doc[p + i] == '-' && len - (p + i) > 9 && __builtin_memcmp(doc + p + i, "- start: ", 9) == 0) {
+      char iso[40];
+      uint32_t n = e - (p + i + 9);
+      if (n >= sizeof(iso)) n = sizeof(iso) - 1;
+      __builtin_memcpy(iso, doc + p + i + 9, n);
+      iso[n] = '\0';
+      uint32_t q = e + 1;
+      while (q < list.from) {
+        int j = 0;
+        while (doc[q + j] == ' ') ++j;
+        if (j <= list.indent && doc[q + j] == '-') break;
+        q = lineEndAt(doc, len, q) + 1;
+      }
+      fn(static_cast<const char*>(iso), p, q, list.indent);
+      p = q;
+    } else {
+      p = e + 1;
+    }
+  }
+}
 
 }  // namespace journalmeta
