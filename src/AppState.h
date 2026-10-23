@@ -23,6 +23,7 @@ enum class AppScreen : uint8_t {
   ConfirmDiscard,
   Sync,
   Setup,
+  Stats,
 };
 
 enum class NamePurpose : uint8_t {

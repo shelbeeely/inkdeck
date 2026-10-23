@@ -9,6 +9,7 @@
 #include "Config.h"
 #include "Journal.h"
 #include "Links.h"
+#include "UsageLog.h"
 #include "WritingStats.h"
 #include "SetupFlow.h"
 #include "SyncFlow.h"
@@ -26,7 +27,7 @@ static constexpr uint8_t kModGui = 0x08 | 0x80;    // L/R Cmd / Win / GUI
 
 static const char* kMenuItems[] = {"Today's journal", "Sync",          "New file",      "New folder",
                                    "Rename",          "Delete",        "Bluetooth",     "Orientation",
-                                   "Set date/time",   "Setup over Wi-Fi", "Forget HID devices"};
+                                   "Set date/time",   "Setup over Wi-Fi", "Stats",         "Forget HID devices"};
 enum MenuItem : int {
   kMenuToday,
   kMenuSync,
@@ -38,6 +39,7 @@ enum MenuItem : int {
   kMenuOrientation,
   kMenuSetClock,
   kMenuSetup,
+  kMenuStats,
   kMenuForget,
 };
 static constexpr int kMenuCount = sizeof(kMenuItems) / sizeof(kMenuItems[0]);
@@ -79,6 +81,7 @@ static void leaveEditor() {
     uiGotoScreen(AppScreen::ConfirmDiscard);
   } else {
     WritingStats::end();
+    UsageLog::editEnd(g_state.doc);
     loadDir();
     uiGotoScreen(AppScreen::Browser);
   }
@@ -161,6 +164,7 @@ void loadDir() {
       f.getName(nm, sizeof(nm));
       f.close();
       if (nm[0] == '.') continue;
+      if (isdir && strcmp(nm, "_inkdeck") == 0) continue;  // usage logs, not notes
       if (!isdir && !hasMarkdownExt(nm)) continue;
       if (st.entryCount >= AppState::kMaxEntries) break;
       const int i = st.entryCount++;
@@ -228,6 +232,7 @@ static void browserOpen() {
   WritingStats::end();
   if (g_state.doc.load(full)) {
     if (g_state.doc.truncated()) showToast("File too large; truncated");
+    UsageLog::editBegin(g_state.doc, false);
     uiGotoScreen(AppScreen::Editor);
   } else {
     showToast("Open failed");
@@ -290,6 +295,7 @@ static void openTodayJournal() {
     return;
   }
   browseJournalFolder();
+  UsageLog::editBegin(st.doc, true);
   if (st.doc.truncated()) showToast("File too large; truncated");
   uiGotoScreen(AppScreen::Editor);
 }
@@ -379,6 +385,8 @@ static void commitName() {
       showToast("Create failed");
       return;
     }
+    UsageLog::fileEvent("create", full);
+    UsageLog::editBegin(g_state.doc, false);
     loadDir();
     uiGotoScreen(AppScreen::Editor);
     return;
@@ -423,6 +431,7 @@ static void commitName() {
   }
   loadDir();
   uiGotoScreen(AppScreen::Browser);
+  if (!st.isDir[st.menuTarget]) UsageLog::fileEvent("rename", oldfull, newfull);
 
   // Notes: point links to the old name at the new one.
   const auto isNote = [](const char* p) {
@@ -465,6 +474,7 @@ static void doDelete() {
   joinPath(full, sizeof(full), st.path, raw);
   bool ok = st.isDir[st.menuTarget] ? SdMan.removeDir(full) : SdMan.remove(full);
   if (!ok) showToast("Delete failed");
+  else if (!st.isDir[st.menuTarget]) UsageLog::fileEvent("delete", full);
   loadDir();
   uiGotoScreen(AppScreen::Browser);
 }
@@ -678,7 +688,15 @@ static void editorKey(const KeyEvent& ev) {
   const bool plain = (ev.mods & (kModCtrl | kModGui)) == 0;
   const char typed = (ev.special == SpecialKey::None && plain) ? ev.ch : 0;
   editorKeyImpl(ev);
-  if (g_state.screen == AppScreen::Editor && (d.length() != lenBefore || typed)) WritingStats::onEdit(d, typed);
+  if (g_state.screen != AppScreen::Editor) return;
+  const int32_t delta = static_cast<int32_t>(d.length()) - static_cast<int32_t>(lenBefore);
+  if (!delta && !typed) return;
+  // A typed character may replace a selection.
+  const uint32_t inserted = typed ? 1 : (delta > 0 ? static_cast<uint32_t>(delta) : 0);
+  const uint32_t removed = typed ? (delta < 1 ? static_cast<uint32_t>(1 - delta) : 0)
+                                 : (delta < 0 ? static_cast<uint32_t>(-delta) : 0);
+  WritingStats::onEdit(d, inserted, removed);
+  UsageLog::edit(d, inserted, removed);
 }
 
 static void editorKeyImpl(const KeyEvent& ev) {
@@ -898,6 +916,22 @@ static void nameEntryKey(const KeyEvent& ev) {
   uiInvalidate(false);
 }
 
+// ---------------------------------------------------------------------------
+// Stats (from the usage log)
+// ---------------------------------------------------------------------------
+static void enterStats() {
+  if (!statsLoad()) {
+    showToast("Set the clock first");
+    return;
+  }
+  uiGotoScreen(AppScreen::Stats);
+}
+
+static void leaveStats() {
+  statsFree();
+  uiGotoScreen(AppScreen::Menu);
+}
+
 static void leaveSync() {
   if (!g_state.syncDone) return;
   if (g_state.pendingToday && Clock::valid()) {
@@ -981,6 +1015,9 @@ static void uiConfirm() {
             showToast("No Wi-Fi yet: use the web flasher");
           }
           break;
+        case kMenuStats:
+          enterStats();
+          break;
         case kMenuForget:
           forgetAll();
           break;
@@ -1001,6 +1038,7 @@ static void uiConfirm() {
     case AppScreen::ConfirmDiscard:
       g_state.journalStub = 0;
       WritingStats::end();
+      UsageLog::editEnd(g_state.doc);
       loadDir();
       uiGotoScreen(AppScreen::Browser);
       break;
@@ -1009,6 +1047,9 @@ static void uiConfirm() {
       break;
     case AppScreen::Setup:
       if (g_state.setupSaved) endSetup(true);
+      break;
+    case AppScreen::Stats:
+      leaveStats();
       break;
   }
 }
@@ -1049,6 +1090,9 @@ static void uiBack() {
       break;
     case AppScreen::Setup:
       endSetup(false);
+      break;
+    case AppScreen::Stats:
+      leaveStats();
       break;
   }
 }

@@ -211,9 +211,10 @@ uint32_t pathHash(const char* path) {
 
 bool isSyncedNotePath(const char* path) {
   const size_t n = strlen(path);
-  if (n < 4 || strcmp(path + n - 3, ".md") != 0) return false;
-  if (path[0] == '.') return false;
-  return strstr(path, "/.") == nullptr;
+  if (path[0] == '.' || strstr(path, "/.")) return false;
+  if (n >= 4 && strcmp(path + n - 3, ".md") == 0) return true;
+  // InkDeck's usage logs, for the stats dashboard.
+  return strncmp(path, "_inkdeck/usage/", 15) == 0 && n > 19 && strcmp(path + n - 4, ".csv") == 0;
 }
 
 // ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@
 #include "Config.h"
 #include "Improv.h"
 #include "PhoneLocation.h"
+#include "UsageLog.h"
 #include "WritingStats.h"
 #include "InkDeckIcons.h"
 #include "SetupFlow.h"
@@ -116,6 +117,8 @@ App::ScreenFn fnFor(AppScreen s) {
       return syncScreen;
     case AppScreen::Setup:
       return setupScreen;
+    case AppScreen::Stats:
+      return statsScreen;
   }
   return browserScreen;
 }
@@ -261,6 +264,8 @@ void uiDrawHardwareFooter(const char* a, const char* b, const char* c, const cha
 }
 
 [[noreturn]] void enterDeepSleep() {
+  UsageLog::editEnd(g_state.doc);  // no-op unless a session is open
+  UsageLog::sleep();
   Clock::rememberNow();  // last known time, should a reset lose the clock
   BleHid.stopScan();
   BleHid.disconnect();
@@ -346,6 +351,7 @@ void setup() {
   g_config.load();  // baked-in + device-stored settings, plus /inkdeck.txt if the SD card is up
   Improv::setProvisioned(g_config.hasWifi());
   Clock::applyTimezone(g_config.timezone);  // the TZ env var doesn't survive deep sleep
+  UsageLog::boot();
   BleHid.begin("InkDeck");
   refreshStatusLabel();
   g_state.lastConnected = BleHid.isConnected();
@@ -397,6 +403,7 @@ void loop() {
   const bool connected = BleHid.isConnected();
   if (connected != g_state.lastConnected) {
     g_state.lastConnected = connected;
+    UsageLog::keyboard(connected, BleHid.connectedName());
     refreshStatusLabel();
     uiInvalidate(false);
   }

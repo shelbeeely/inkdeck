@@ -40,7 +40,8 @@ bool urlEscapePath(const char* in, char* out, size_t outsz);
 bool jsonEscape(const char* in, char* out, size_t outsz);
 // FNV-1a 32-bit, used to key paths in fixed-size tables.
 uint32_t pathHash(const char* path);
-// True for the note files we sync: "*.md", no hidden path segment.
+// True for the files we sync: notes ("*.md") and InkDeck's usage logs
+// ("_inkdeck/usage/*.csv"); never hidden paths.
 bool isSyncedNotePath(const char* path);
 
 // --- Repository URLs ------------------------------------------------------------

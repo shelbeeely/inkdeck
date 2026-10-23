@@ -8,6 +8,7 @@
 #include "Config.h"
 #include "GitSync.h"
 #include "Net.h"
+#include "UsageLog.h"
 #include "screens.h"
 
 namespace {
@@ -58,8 +59,13 @@ void syncGit() {
     say("No git_token set up");
     return;
   }
+  const uint32_t started = millis();
   const GitSync::Result r = GitSync::run(progress);
   char msg[64];
+  char detail[96];
+  snprintf(detail, sizeof(detail), "down=%u up=%u deleted=%u conflicts=%u %s", r.pulled, r.pushed, r.deleted,
+           r.conflicts, r.ok ? "ok" : "failed");
+  UsageLog::sync((millis() - started) / 1000, detail);
   snprintf(msg, sizeof(msg), "%u down, %u up, %u deleted", r.pulled, r.pushed, r.deleted);
   addLine(msg);
   if (r.conflicts) {

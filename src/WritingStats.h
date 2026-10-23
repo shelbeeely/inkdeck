@@ -16,9 +16,8 @@ namespace WritingStats {
 // A journal session started on `doc` (today's entry, heading just added).
 void begin(const Document& doc);
 bool active();
-// After a key that changed the text; `typed` is the inserted character (0 for
-// Enter, Backspace and other edits).
-void onEdit(const Document& doc, char typed);
+// After an edit that inserted and/or removed characters at the caret.
+void onEdit(const Document& doc, uint32_t inserted, uint32_t removed);
 void setLocation(const journalmeta::Fix& fix);
 // Before saving: writes/updates this session's record in doc's front matter.
 // No-op if nothing was typed.

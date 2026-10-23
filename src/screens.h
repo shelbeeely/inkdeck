@@ -26,6 +26,9 @@ void confirmDeleteScreen(ScreenT& s, void* user);
 void confirmDiscardScreen(ScreenT& s, void* user);
 void syncScreen(ScreenT& s, void* user);
 void setupScreen(ScreenT& s, void* user);
+void statsScreen(ScreenT& s, void* user);
+bool statsLoad();  // reads the usage log for statsScreen; false without a clock
+void statsFree();
 
 // --- Input (called from the main loop) ---
 void handleKey(const freeink::KeyEvent& ev);

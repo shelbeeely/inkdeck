@@ -66,6 +66,36 @@ uint32_t lineEnd(const char* s, uint32_t len, uint32_t p) {
 
 }  // namespace
 
+uint32_t Counters::edit(uint32_t ms, int64_t now, uint32_t inserted, uint32_t removed, bool revision) {
+  uint32_t credit = 0;
+  if (keys) {
+    const uint32_t gap = ms - lastKeyMs;
+    if (gap <= kIdleGapMs) {
+      credit = gap;
+      activeMs += gap;
+    } else {
+      ++pauses;
+      if (gap > longestPauseMs) longestPauseMs = gap;
+    }
+    burstMs = gap < kBurstGapMs ? burstMs + gap : 0;
+    if (burstMs > longestBurstMs) longestBurstMs = burstMs;
+  } else {
+    firstKey = now;
+  }
+  ++keys;
+  typed += inserted;
+  deleted += removed;
+  if (revision) ++revisions;
+  lastKey = now;
+  lastKeyMs = ms;
+  return credit;
+}
+
+uint32_t wordsPerMinute(int32_t words, uint32_t activeMs) {
+  if (words <= 0 || activeMs < 30000) return 0;
+  return static_cast<uint32_t>((static_cast<uint64_t>(words) * 60000 + activeMs / 2) / activeMs);
+}
+
 bool parseLocation(const char* text, size_t len, Fix& out) {
   out = Fix();
   const char* p = text;
@@ -106,6 +136,17 @@ size_t buildSessionYaml(const Session& s, int indent, FormatIso iso, FormatClock
   put(out, outsz, n, over, "%*sactive_s: %lu\n", in, "", static_cast<unsigned long>(s.activeMs / 1000));
   put(out, outsz, n, over, "%*skeys: %lu\n", in, "", static_cast<unsigned long>(s.keys));
   put(out, outsz, n, over, "%*swords: %ld\n", in, "", static_cast<long>(s.words));
+  const Counters& c = s.c;
+  if (c.keys) {
+    put(out, outsz, n, over, "%*swpm: %lu\n", in, "", static_cast<unsigned long>(wordsPerMinute(s.words, s.activeMs)));
+    put(out, outsz, n, over, "%*styped: %lu\n%*sdeleted: %lu\n", in, "", static_cast<unsigned long>(c.typed), in, "",
+        static_cast<unsigned long>(c.deleted));
+    put(out, outsz, n, over, "%*spauses: %lu\n%*slongest_pause_s: %lu\n", in, "", static_cast<unsigned long>(c.pauses),
+        in, "", static_cast<unsigned long>(c.longestPauseMs / 1000));
+    put(out, outsz, n, over, "%*slongest_burst_s: %lu\n", in, "", static_cast<unsigned long>(c.longestBurstMs / 1000));
+    put(out, outsz, n, over, "%*sfirst_key_s: %lld\n", in, "", static_cast<long long>(c.firstKey - s.opened));
+    put(out, outsz, n, over, "%*srevisions: %lu\n", in, "", static_cast<unsigned long>(c.revisions));
+  }
   if (s.location.valid) {
     iso(s.location.time, a, sizeof(a));
     put(out, outsz, n, over, "%*slocation: {lat: %.6f, lon: %.6f, accuracy_m: %lu, time: %s, source: %s", in, "",
