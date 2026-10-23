@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InkDeck Stats</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f6f5f1; --surface: #fff; --text: #1d1c1a; --muted: #6a665e; --line: #e2ded5;
+    --accent: #2f6f5e; --accent-2: #c2703d; --heat-0: #ebe8e0; --bad: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --surface: #1e1d1b; --text: #ecebe7; --muted: #a39f96; --line: #34322e;
+      --accent: #6cc4a8; --accent-2: #e59a63; --heat-0: #2a2926; --bad: #f2b8b5;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141413; --surface: #1e1d1b; --text: #ecebe7; --muted: #a39f96; --line: #34322e;
+    --accent: #6cc4a8; --accent-2: #e59a63; --heat-0: #2a2926; --bad: #f2b8b5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 20px; }
+  h1 { font-size: 1.7rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1.02rem; margin: 0 0 12px; }
+  .muted { color: var(--muted); font-size: 0.88rem; }
+  .grid { display: grid; gap: 14px; }
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 14px; }
+  .two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+  .tile .v { font-size: 1.6rem; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile .k { color: var(--muted); font-size: 0.85rem; }
+  .section { margin-top: 14px; }
+  .chart { position: relative; height: 260px; }
+  .scroll { overflow-x: auto; }
+  #calendar svg { width: 100%; min-width: 640px; height: auto; display: block; }
+  .hours { display: grid; grid-template-columns: 34px repeat(24, 1fr); gap: 2px; font-size: 0.72rem; color: var(--muted); min-width: 420px; }
+  .hours .cell { aspect-ratio: 1; border-radius: 3px; background: var(--heat-0); }
+  .hours .lbl { display: flex; align-items: center; }
+  .hours .hl { text-align: center; }
+  #map { height: 300px; border-radius: 10px; z-index: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  td.path { overflow-wrap: anywhere; }
+  .habits { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  .habits div { border-left: 3px solid var(--accent); padding-left: 10px; }
+  .habits b { display: block; font-size: 1.2rem; }
+  .day-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  input[type=date] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .session { border-top: 1px solid var(--line); padding: 10px 0; }
+  .session:first-child { border-top: 0; }
+  .timeline { position: relative; height: 18px; background: var(--heat-0); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .timeline span { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; min-width: 2px; }
+  .err { color: var(--bad); }
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>InkDeck Stats</h1>
+    <span class="muted" id="updated">Loading…</span>
+  </header>
+
+  <div class="grid tiles" id="tiles"></div>
+
+  <div class="card section">
+    <h2>Writing calendar</h2>
+    <div id="calendar" class="scroll"></div>
+    <p class="muted" id="cal-note"></p>
+  </div>
+
+  <div class="grid two section">
+    <div class="card"><h2>Words and active time per day (90 days)</h2><div class="chart"><canvas id="daily"></canvas></div></div>
+    <div class="card"><h2>Typing speed per session</h2><div class="chart"><canvas id="wpm"></canvas></div></div>
+  </div>
+
+  <div class="grid two section">
+    <div class="card">
+      <h2>When you write</h2>
+      <div class="scroll"><div class="hours" id="hours"></div></div>
+      <p class="muted">Active typing time by weekday and hour.</p>
+    </div>
+    <div class="card">
+      <h2>Habits</h2>
+      <div class="habits" id="habits"></div>
+    </div>
+  </div>
+
+  <div class="grid two section">
+    <div class="card"><h2>Places</h2><div id="map"></div><table id="places"></table></div>
+    <div class="card">
+      <div class="day-head"><h2 style="margin:0">Day</h2><input type="date" id="day"></div>
+      <div id="day-sessions"></div>
+    </div>
+  </div>
+
+  <div class="grid two section">
+    <div class="card"><h2>Battery</h2><div class="chart"><canvas id="battery"></canvas></div></div>
+    <div class="card"><h2>Device</h2><div class="habits" id="device"></div></div>
+  </div>
+
+  <div class="card section">
+    <h2>Files by time spent</h2>
+    <table id="files"></table>
+  </div>
+</main>
+<script>
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const num = (n) => Number(n || 0).toLocaleString();
+function dur(s) {
+  s = Math.round(s || 0);
+  if (s >= 3600) return `${Math.floor(s / 3600)} h ${String(Math.floor(s % 3600 / 60)).padStart(2, "0")} m`;
+  if (s >= 60) return `${Math.round(s / 60)} min`;
+  return `${s} s`;
+}
+const avg = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+
+function tiles(t) {
+  const items = [
+    [t.streak + (t.streak === 1 ? " day" : " days"), `Streak (best ${t.best_streak})`],
+    [num(t.today.words), `Words today · ${dur(t.today.active_s)}`],
+    [num(t.week.words), `This week · ${dur(t.week.active_s)}`],
+    [num(t.month.words), `This month · ${dur(t.month.active_s)}`],
+    [num(t.words), `All time · ${t.days_written} days`],
+    [t.avg_wpm || "–", "Words per active minute"],
+    [`${t.deleted_pct}%`, "Of typing deleted"],
+  ];
+  $("tiles").innerHTML = items.map(([v, k]) => `<div class="card tile"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+}
+
+function calendar(days, todayIso) {
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const today = new Date(todayIso + "T12:00:00");
+  const start = new Date(today); start.setDate(start.getDate() - 364);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));  // back to Monday
+  const max = Math.max(1, ...days.map((d) => d.words));
+  const cell = 11, gap = 3, cols = Math.ceil(((today - start) / 864e5 + 1) / 7);
+  const levels = [0.18, 0.4, 0.65, 1];
+  let rects = "", months = "";
+  const d = new Date(start);
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < 7; r++) {
+      if (d > today) break;
+      const iso = d.toISOString().slice(0, 10);
+      const v = byDate.get(iso);
+      const lvl = v && v.words > 0 ? levels.findIndex((x) => v.words / max <= x) : -1;
+      const fill = lvl < 0 ? "var(--heat-0)" : "var(--accent)";
+      const op = lvl < 0 ? 1 : [0.3, 0.55, 0.8, 1][lvl];
+      rects += `<rect x="${30 + c * (cell + gap)}" y="${16 + r * (cell + gap)}" width="${cell}" height="${cell}" rx="2" fill="${fill}" fill-opacity="${op}"><title>${iso}: ${v ? num(v.words) + " words, " + dur(v.active_s) : "no writing"}</title></rect>`;
+      if (d.getDate() === 1) months += `<text x="${30 + c * (cell + gap)}" y="10" font-size="10" fill="var(--muted)">${d.toLocaleString(undefined, {month: "short"})}</text>`;
+      d.setDate(d.getDate() + 1);
+    }
+  }
+  const labels = ["Mon", "", "Wed", "", "Fri", "", ""].map((l, i) => l ? `<text x="0" y="${25 + i * (cell + gap)}" font-size="10" fill="var(--muted)">${l}</text>` : "").join("");
+  const w = 30 + cols * (cell + gap);
+  $("calendar").innerHTML = `<svg viewBox="0 0 ${w} ${16 + 7 * (cell + gap)}" role="img" aria-label="Words written per day over the last year">${months}${labels}${rects}</svg>`;
+  $("cal-note").textContent = `Darker = more words. Busiest day: ${max.toLocaleString()} words.`;
+  $("calendar").scrollLeft = $("calendar").scrollWidth;  // most recent weeks first on narrow screens
+}
+
+let charts = [];
+function chartDefaults() {
+  Chart.defaults.color = css("--muted");
+  Chart.defaults.borderColor = css("--line");
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+}
+
+function daily(days, todayIso) {
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const labels = [], words = [], mins = [];
+  const t = new Date(todayIso + "T12:00:00");
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(t); d.setDate(d.getDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    labels.push(iso.slice(5));
+    words.push(byDate.get(iso)?.words || 0);
+    mins.push(Math.round((byDate.get(iso)?.active_s || 0) / 60));
+  }
+  charts.push(new Chart($("daily"), {
+    data: { labels, datasets: [
+      { type: "bar", label: "Words", data: words, backgroundColor: css("--accent"), yAxisID: "y", borderRadius: 2 },
+      { type: "line", label: "Active minutes", data: mins, borderColor: css("--accent-2"), backgroundColor: css("--accent-2"),
+        yAxisID: "y1", pointRadius: 0, tension: 0.3, borderWidth: 2 },
+    ]},
+    options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 8 } }, y: { beginAtZero: true, title: { display: true, text: "words" } },
+                y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "minutes" } } },
+      plugins: { legend: { position: "bottom" } } },
+  }));
+}
+
+function wpm(sessions) {
+  const pts = sessions.filter((s) => s.wpm > 0).slice(-200);
+  const labels = pts.map((s) => s.start.slice(0, 10));
+  const roll = pts.map((_, i) => Math.round(avg(pts.slice(Math.max(0, i - 9), i + 1).map((s) => s.wpm))));
+  charts.push(new Chart($("wpm"), {
+    data: { labels, datasets: [
+      { type: "scatter", label: "Session", data: pts.map((s, i) => ({ x: i, y: s.wpm })), backgroundColor: css("--accent") + "88", pointRadius: 3 },
+      { type: "line", label: "Average of 10", data: roll.map((y, i) => ({ x: i, y })), borderColor: css("--accent-2"), pointRadius: 0, borderWidth: 2, tension: 0.3 },
+    ]},
+    options: { maintainAspectRatio: false, parsing: true,
+      scales: { x: { type: "linear", ticks: { callback: (v) => labels[v] ? labels[v].slice(5) : "", maxTicksLimit: 8 } },
+                y: { beginAtZero: true, title: { display: true, text: "words / active minute" } } },
+      plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { title: (items) => labels[items[0].parsed.x] } } } },
+  }));
+}
+
+function hours(grid) {
+  const max = Math.max(1, ...grid.flat());
+  const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let html = "<span></span>" + Array.from({length: 24}, (_, h) => `<span class="hl">${h % 6 === 0 ? h : ""}</span>`).join("");
+  grid.forEach((row, wd) => {
+    html += `<span class="lbl">${names[wd]}</span>`;
+    html += row.map((v, h) => `<span class="cell" title="${names[wd]} ${h}:00 – ${dur(v)}" style="${v ? `background:var(--accent);opacity:${(0.15 + 0.85 * v / max).toFixed(2)}` : ""}"></span>`).join("");
+  });
+  $("hours").innerHTML = html;
+}
+
+function habits(sessions) {
+  const j = sessions.filter((s) => s.kind === "journal" && s.keys > 0);
+  const items = [
+    [dur(avg(sessions.map((s) => s.active_s))), "Average session"],
+    [avg(j.map((s) => s.pauses)).toFixed(1), "Pauses per session"],
+    [dur(avg(j.map((s) => s.longest_burst_s))), "Longest burst (avg)"],
+    [dur(avg(j.map((s) => s.first_key_s))), "To first keystroke"],
+    [avg(j.map((s) => s.revisions)).toFixed(1), "Revisions per session"],
+    [avg(j.map((s) => s.parts.length)).toFixed(1), "Paragraphs per session"],
+  ];
+  $("habits").innerHTML = items.map(([v, k]) => `<div><b>${esc(v)}</b><span class="muted">${esc(k)}</span></div>`).join("");
+}
+
+function places(list) {
+  if (!list.length) {
+    $("map").outerHTML = `<p class="empty">No locations yet. Turn on <code>location = phone</code> on the X4.</p>`;
+    return;
+  }
+  const map = L.map("map", { scrollWheelZoom: false });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
+  const max = Math.max(...list.map((p) => p.sessions));
+  const bounds = [];
+  for (const p of list) {
+    L.circleMarker([p.lat, p.lon], { radius: 6 + 14 * p.sessions / max, color: css("--accent"), weight: 2, fillOpacity: 0.35 })
+      .bindTooltip(`${esc(p.place)}: ${p.sessions} sessions, ${num(p.words)} words`).addTo(map);
+    bounds.push([p.lat, p.lon]);
+  }
+  map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+  $("places").innerHTML = "<tr><th>Place</th><th class=n>Sessions</th><th class=n>Words</th></tr>" +
+    list.slice(0, 8).map((p) => `<tr><td>${esc(p.place)}</td><td class=n>${p.sessions}</td><td class=n>${num(p.words)}</td></tr>`).join("");
+}
+
+function dayView(sessions, iso) {
+  const list = sessions.filter((s) => s.start.slice(0, 10) === iso);
+  if (!list.length) { $("day-sessions").innerHTML = `<p class="empty">Nothing written on ${esc(iso)}.</p>`; return; }
+  const secs = (t) => { const [h, m, s] = t.split(":").map(Number); return h * 3600 + m * 60 + s; };
+  $("day-sessions").innerHTML = list.map((s) => {
+    const st = secs(s.start.slice(11, 19)), en = Math.max(st + 60, secs(s.end.slice(11, 19)));
+    const bars = s.parts.map((p) => {
+      // Clamp to the session: a part can end after the last recorded keystroke.
+      const a = Math.min(99.5, Math.max(0, (secs(p.start) - st) / (en - st) * 100));
+      const b = Math.max(0.5, Math.min(100 - a, (secs(p.end) - secs(p.start)) / (en - st) * 100));
+      return `<span style="left:${a.toFixed(1)}%;width:${b.toFixed(1)}%" title="${esc(p.start)}–${esc(p.end)}: ${p.words} words, ${dur(p.active_s)} typing"></span>`;
+    }).join("");
+    return `<div class="session"><b>${esc(s.start.slice(11, 16))}</b> <span class="muted">${esc(s.file)}${s.place ? " · " + esc(s.place) : ""}</span>
+      <div class="muted">${num(s.words)} words · ${dur(s.active_s)} typing${s.wpm ? " · " + s.wpm + " wpm" : ""}${s.parts.length ? " · " + s.parts.length + " paragraphs" : ""}</div>
+      ${s.parts.length ? `<div class="timeline">${bars}</div>` : ""}</div>`;
+  }).join("");
+}
+
+function battery(points) {
+  const pts = points.slice(-300);
+  charts.push(new Chart($("battery"), {
+    type: "line",
+    data: { labels: pts.map((p) => p.time.slice(5, 16).replace("T", " ")),
+      datasets: [{ label: "Battery %", data: pts.map((p) => p.battery), borderColor: css("--accent"), pointRadius: 0, borderWidth: 2, stepped: false }] },
+    options: { maintainAspectRatio: false, scales: { x: { ticks: { maxTicksLimit: 6 } }, y: { min: 0, max: 100 } }, plugins: { legend: { display: false } } },
+  }));
+}
+
+function device(dev) {
+  const failed = dev.syncs.filter((s) => !s.ok).length;
+  const items = [
+    [num(dev.syncs.length), `Syncs (${failed} failed)`],
+    [dur(avg(dev.syncs.map((s) => s.duration_s))), "Average sync"],
+    [dur(dev.keyboard_s), "Keyboard connected"],
+    [num(dev.boots), "Restarts"],
+    [num(dev.events.create), "Notes created"],
+    [`${num(dev.events.rename)} / ${num(dev.events.delete)}`, "Renamed / deleted"],
+  ];
+  $("device").innerHTML = items.map(([v, k]) => `<div><b>${esc(v)}</b><span class="muted">${esc(k)}</span></div>`).join("");
+}
+
+function files(list) {
+  $("files").innerHTML = "<tr><th>File</th><th class=n>Time</th><th class=n>Words</th><th class=n>Sessions</th></tr>" +
+    list.map((f) => `<tr><td class="path">${esc(f.path)}</td><td class=n>${dur(f.active_s)}</td><td class=n>${num(f.words)}</td><td class=n>${f.sessions}</td></tr>`).join("");
+}
+
+async function load() {
+  let data;
+  try {
+    const r = await fetch("api/stats");
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.statusText);
+  } catch (e) {
+    $("updated").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+    setTimeout(load, 5000);
+    return;
+  }
+  chartDefaults();
+  charts.forEach((c) => c.destroy()); charts = [];
+  const pulled = data.pulled ? new Date(data.pulled * 1000) : new Date(data.generated);
+  $("updated").textContent = `Updated ${pulled.toLocaleString()}`;
+  tiles(data.totals);
+  calendar(data.days, data.today);
+  daily(data.days, data.today);
+  wpm(data.sessions);
+  hours(data.hour_weekday);
+  habits(data.sessions);
+  places(data.places);
+  device(data.device);
+  battery(data.device.battery);
+  files(data.files);
+  const last = data.sessions.length ? data.sessions[data.sessions.length - 1].start.slice(0, 10) : data.today;
+  $("day").value = last;
+  $("day").onchange = () => dayView(data.sessions, $("day").value);
+  dayView(data.sessions, last);
+}
+load();
+</script>
+</body>
+</html>

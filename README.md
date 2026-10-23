@@ -84,6 +84,21 @@ last location). Phone location needs an app on the phone serving InkDeck's
 location service: the contract is in [docs/phone-location.md](docs/phone-location.md),
 including how to test with nRF Connect.
 
+## Stats
+
+- **On the X4**: *Menu → Stats* shows today, this week and month (words,
+  active time, sessions), your streak and best streak, best day, average
+  session and typing speed, how much typing you deleted, syncs, keyboard
+  time, and a chart of when in the day you write (last 30 days).
+- **Usage log**: everything above comes from `<notes>/_inkdeck/usage/YYYY-MM.csv`,
+  which records every editing session (any file), creates, renames, deletes,
+  syncs, boots and sleeps with the battery level, and keyboard connections.
+  It syncs with your journal (and is hidden in the X4's file browser).
+- **Dashboard**: [`server/`](server/README.md) is a small Docker service that
+  reads your repo and charts it all: writing calendar, words and time per day,
+  typing speed, weekday × hour, habits, places map, per-day timelines,
+  battery and files.
+
 ## Installing from the browser
 
 The web flasher installs InkDeck from Chrome or Edge on a computer, with no
@@ -248,13 +263,17 @@ src/
   SetupServer.*  the setup web page (repo URL, token, time zone, folders)
   WritingStats.* session and paragraph writing times, written into front matter
   PhoneLocation.* reads the session location from the phone's GATT server
-  JournalMeta.*  pure helpers: session YAML, location format, word counts
+  JournalMeta.*  pure helpers: session YAML, typing counters, location format, word counts
+  UsageLog.*     the usage log (any editing session, syncs, battery, keyboard)
+  UsageStats.*   pure: usage log format and the Stats screen's totals
+  StatsScreen.cpp the Stats screen
   Links.*        after a rename, rewrites links to the note across the notes
   LinkRewrite.*  pure link rewriting (GitJournal's wiki/markdown link rules)
 tools/
   flash_config.py       pre-build: bakes flash-config.txt + the version into the firmware
   merge_bin.py          post-build: one image for the web flasher (inkdeck-full.bin)
   build_web_flasher.py  assembles web/ + image + manifest.json into a site
+server/          stats dashboard (Python, Docker): reads the repo, serves charts
 web/
   index.html     the browser installer page (ESP Web Tools + settings form)
   settings.js    sends settings to the X4 over Web Serial (Improv command 0x80)

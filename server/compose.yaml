@@ -1,0 +1,14 @@
+# InkDeck stats dashboard. Copy .env.example to .env, fill it in, then:
+#   docker compose up -d        # dashboard on http://localhost:8080
+services:
+  inkdeck-stats:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - inkdeck-data:/data   # the read-only clone of your journal
+
+volumes:
+  inkdeck-data:

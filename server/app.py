@@ -1,0 +1,169 @@
+"""InkDeck stats dashboard server.
+
+Keeps a read-only clone of the journal repository up to date and serves a
+dashboard built from InkDeck's session records and usage logs (stats.py).
+
+Environment:
+  REPO_URL            git URL of the journal repo (https or ssh). Without it,
+                      NOTES_PATH is read as is (e.g. a folder you sync yourself).
+  GIT_TOKEN           access token for https URLs (read access is enough).
+  GIT_USERNAME        username sent with the token (default x-access-token,
+                      right for GitHub; GitLab uses oauth2).
+  NOTES_PATH          where the clone lives (default /data/notes).
+  NOTES_SUBFOLDER     folder inside the repo that InkDeck's notes folder mirrors
+                      (default: the repo root).
+  PULL_INTERVAL       seconds between fetches (default 300).
+  DASHBOARD_PASSWORD  require HTTP basic auth with this password (any user
+                      name). Set it whenever the port is reachable by others.
+  PORT                default 8080.
+"""
+
+from __future__ import annotations
+
+import base64
+import hmac
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+import stats
+
+HERE = Path(__file__).resolve().parent
+DASHBOARD = HERE / "dashboard"
+
+REPO_URL = os.environ.get("REPO_URL", "").strip()
+GIT_TOKEN = os.environ.get("GIT_TOKEN", "").strip()
+GIT_USERNAME = os.environ.get("GIT_USERNAME", "x-access-token").strip()
+NOTES_PATH = Path(os.environ.get("NOTES_PATH", "/data/notes"))
+NOTES_SUBFOLDER = os.environ.get("NOTES_SUBFOLDER", "").strip("/")
+PULL_INTERVAL = int(os.environ.get("PULL_INTERVAL", "300"))
+PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+PORT = int(os.environ.get("PORT", "8080"))
+
+_lock = threading.Lock()
+_cache: dict = {"json": None, "at": 0.0, "error": None, "pulled": None}
+
+
+def log(msg: str) -> None:
+    print(f"[inkdeck-stats] {msg}", file=sys.stderr, flush=True)
+
+
+def git(*args: str) -> None:
+    cmd = ["git"]
+    if GIT_TOKEN and REPO_URL.startswith("http"):
+        # Sent per command, never written into the clone's config.
+        cred = base64.b64encode(f"{GIT_USERNAME}:{GIT_TOKEN}".encode()).decode()
+        cmd += ["-c", f"http.extraHeader=Authorization: Basic {cred}"]
+    subprocess.run(cmd + list(args), check=True, capture_output=True, text=True, timeout=300)
+
+
+def pull() -> None:
+    """Clone or fast-forward the read-only copy (local changes are discarded)."""
+    if not REPO_URL:
+        return
+    if not (NOTES_PATH / ".git").is_dir():
+        NOTES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        log(f"cloning {REPO_URL.split('@')[-1]}")
+        git("clone", "--depth", "1", REPO_URL, str(NOTES_PATH))
+    else:
+        git("-C", str(NOTES_PATH), "fetch", "--depth", "1", "origin")
+        git("-C", str(NOTES_PATH), "reset", "--hard", "FETCH_HEAD")
+    _cache["pulled"] = time.time()
+
+
+def notes_root() -> Path:
+    return NOTES_PATH / NOTES_SUBFOLDER if NOTES_SUBFOLDER else NOTES_PATH
+
+
+def refresh() -> None:
+    with _lock:
+        try:
+            pull()
+            data = stats.compute(notes_root())
+            data["pulled"] = _cache["pulled"]
+            _cache.update(json=json.dumps(data).encode(), at=time.time(), error=None)
+        except subprocess.CalledProcessError as e:
+            _cache["error"] = f"git failed: {(e.stderr or '').strip()[-300:]}"
+            log(_cache["error"])
+        except Exception as e:  # keep serving the last good stats
+            _cache["error"] = f"{type(e).__name__}: {e}"
+            log(_cache["error"])
+
+
+def refresher() -> None:
+    while True:
+        refresh()
+        time.sleep(PULL_INTERVAL)
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "InkDeckStats"
+
+    def log_message(self, fmt, *args):  # quieter than the default per-request log
+        pass
+
+    def authorized(self) -> bool:
+        if not PASSWORD:
+            return True
+        header = self.headers.get("Authorization", "")
+        if header.startswith("Basic "):
+            try:
+                _, _, given = base64.b64decode(header[6:]).decode().partition(":")
+            except (ValueError, UnicodeDecodeError):
+                return False
+            return hmac.compare_digest(given, PASSWORD)
+        return False
+
+    def send(self, status: int, body: bytes, ctype: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/healthz":
+            return self.send(200, b"ok", "text/plain")
+        if not self.authorized():
+            self.send_response(HTTPStatus.UNAUTHORIZED)
+            self.send_header("WWW-Authenticate", 'Basic realm="InkDeck stats"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        path = self.path.split("?")[0]
+        if path == "/api/stats":
+            if _cache["json"] is None:
+                body = json.dumps({"error": _cache["error"] or "Still loading, try again shortly."}).encode()
+                return self.send(503, body, "application/json")
+            return self.send(200, _cache["json"], "application/json")
+        if path in ("/", "/index.html"):
+            return self.send(200, (DASHBOARD / "index.html").read_bytes(), "text/html; charset=utf-8")
+        self.send(404, b"not found", "text/plain")
+
+    def do_POST(self):
+        if not self.authorized():
+            return self.send(401, b"", "text/plain")
+        if self.path == "/api/refresh":
+            refresh()
+            return self.send(200, b"{}", "application/json")
+        self.send(404, b"not found", "text/plain")
+
+
+def main() -> None:
+    if not PASSWORD:
+        log("DASHBOARD_PASSWORD is not set: anyone who can reach this port can read your stats")
+    threading.Thread(target=refresher, daemon=True).start()
+    log(f"serving on :{PORT}")
+    ThreadingHTTPServer(("", PORT), Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()
