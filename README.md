@@ -51,6 +51,12 @@ Jot marks worth knowing on a keyboard: `[ ] task` / `[x] done`, `o 6:30p event`,
 `? question`, `! idea`, and a `### 2026-10-26 | Monday` heading to start a day's entry
 (several days can share one file).
 
+**From the journal editor.** The `.jot` editor downloads your journal as `.jot` files to fill in:
+each day a `### 2026-10-26 | Monday` entry with its blocks (`[ ] ` boxes to tick, `value:` blanks,
+headings with room to write). Use **Download .jot, a file a week**: a whole month is a little over
+the 16 KB InkDeck holds in its editor, and a bigger file opens cut short. Copy the files to the card
+and fill them in on the device.
+
 **Into the book.** The `.jot` builder (Journalwright's engine, in the `.jot` repository)
 prints these notes into the monthly book, after the week they belong to. Copy the card's
 files (or point at the card) and build:
