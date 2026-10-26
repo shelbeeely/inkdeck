@@ -18,8 +18,11 @@ class Document {
  public:
   // Point the document at `path` with empty contents (no SD I/O).
   void reset(const char* path);
+  // Same, starting from `initial` (a new .jot's metadata block), caret at its end. Not dirty until edited.
+  void reset(const char* path, const char* initial);
   // Stream the file at `path` into the buffer (truncating to capacity). Returns
-  // false if it can't be opened.
+  // false if it can't be opened, or if it is a ZIP-packaged .jot (packaged() is
+  // then true): that is binary, so it is never shown or saved over as text.
   bool load(const char* path);
   // Stream the buffer back to its path. Returns false on failure.
   bool save();
@@ -37,6 +40,7 @@ class Document {
   const char* name() const { return name_; }
   bool dirty() const { return dirty_; }
   bool truncated() const { return truncated_; }
+  bool packaged() const { return packaged_; }
 
   // --- Selection (anchor..cursor) -------------------------------------------
   bool hasSelection() const { return anchor_ != cursor_; }
@@ -96,6 +100,7 @@ class Document {
   char name_[96] = {0};
   bool dirty_ = false;
   bool truncated_ = false;
+  bool packaged_ = false;
 
   static char clip_[INKDECK_CLIP_CAPACITY];
   static uint32_t clipLen_;

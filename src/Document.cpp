@@ -17,6 +17,7 @@ void Document::reset(const char* path) {
   topLine_ = 0;
   dirty_ = false;
   truncated_ = false;
+  packaged_ = false;
   buf_[0] = '\0';
   path_[0] = '\0';
   name_[0] = '\0';
@@ -28,6 +29,18 @@ void Document::reset(const char* path) {
     strncpy(name_, base, sizeof(name_) - 1);
     name_[sizeof(name_) - 1] = '\0';
   }
+}
+
+void Document::reset(const char* path, const char* initial) {
+  reset(path);
+  if (!initial) return;
+  uint32_t n = strlen(initial);
+  if (n > INKDECK_DOC_CAPACITY - 1) n = INKDECK_DOC_CAPACITY - 1;
+  memcpy(buf_, initial, n);
+  len_ = n;
+  buf_[len_] = '\0';
+  cursor_ = len_;
+  anchor_ = cursor_;
 }
 
 bool Document::load(const char* path) {
@@ -45,6 +58,12 @@ bool Document::load(const char* path) {
   }
   truncated_ = f.available() > 0;
   f.close();
+  // A packaged Jot document is a ZIP ("PK\3\4"): binary, so it is not opened as text (saving would destroy it).
+  if (n >= 4 && buf_[0] == 'P' && buf_[1] == 'K' && buf_[2] == 3 && buf_[3] == 4) {
+    reset(path);
+    packaged_ = true;
+    return false;
+  }
   len_ = n;
   buf_[len_] = '\0';
   cursor_ = len_;  // open with the caret at the end of the existing text

@@ -50,13 +50,15 @@ static void rawName(char* out, size_t outsz, const char* label) {
   if (n > 0 && out[n - 1] == '/') out[n - 1] = '\0';
 }
 
-static bool hasMarkdownExt(const char* name) {
-  const size_t n = strlen(name);
-  auto ends = [&](const char* ext) {
-    const size_t e = strlen(ext);
-    return n > e && strcasecmp(name + n - e, ext) == 0;
-  };
-  return ends(".md") || ends(".markdown") || ends(".txt");
+static bool endsWithExt(const char* name, const char* ext) {
+  const size_t n = strlen(name), e = strlen(ext);
+  return n > e && strcasecmp(name + n - e, ext) == 0;
+}
+
+// Files the browser lists and the editor opens: Jot documents (plain-text .jot, the Jot v1 format) and markdown/text.
+static bool hasNoteExt(const char* name) {
+  return endsWithExt(name, ".jot") || endsWithExt(name, ".md") || endsWithExt(name, ".markdown") ||
+         endsWithExt(name, ".txt");
 }
 
 static int moveSel(int sel, int delta, int count) {
@@ -111,7 +113,7 @@ void loadDir() {
       f.getName(nm, sizeof(nm));
       f.close();
       if (nm[0] == '.') continue;
-      if (!isdir && !hasMarkdownExt(nm)) continue;
+      if (!isdir && !hasNoteExt(nm)) continue;
       if (st.entryCount >= AppState::kMaxEntries) break;
       const int i = st.entryCount++;
       st.isDir[i] = isdir;
@@ -177,6 +179,8 @@ static void browserOpen() {
   if (g_state.doc.load(full)) {
     if (g_state.doc.truncated()) showToast("File too large; truncated");
     uiGotoScreen(AppScreen::Editor);
+  } else if (g_state.doc.packaged()) {
+    showToast("Packaged .jot: open on a computer");
   } else {
     showToast("Open failed");
   }
@@ -232,10 +236,23 @@ static void startDelete() {
   uiGotoScreen(AppScreen::ConfirmDelete);
 }
 
-static void ensureMdExt(char* name, size_t sz) {
-  if (!hasMarkdownExt(name)) {
-    strncat(name, ".md", sz - strlen(name) - 1);
+// A name with no note extension gets `ext`: ".jot" for a new file, the old extension on a rename.
+static void ensureNoteExt(char* name, size_t sz, const char* ext) {
+  if (!hasNoteExt(name)) {
+    strncat(name, ext, sz - strlen(name) - 1);
   }
+}
+
+// A new .jot starts with the Jot metadata block, titled from its name. Journalwright's builder (jots.mjs) prints it after
+// the week it belongs to: name the file YYYY-MM-DD (or add a "### YYYY-MM-DD" heading) so it has a date. The X4 has no
+// clock InkDeck can trust, so the date is never filled in for you.
+static void jotStarter(char* out, size_t outsz, const char* leaf) {
+  char title[80];
+  strncpy(title, leaf, sizeof(title) - 1);
+  title[sizeof(title) - 1] = '\0';
+  const size_t n = strlen(title);
+  if (n > 4) title[n - 4] = '\0';  // drop ".jot"
+  snprintf(out, outsz, "---\nJot: 1.0\nTitle: %s\n---\n\n", title);
 }
 
 static void commitName() {
@@ -249,14 +266,20 @@ static void commitName() {
     char leaf[80];
     strncpy(leaf, st.nameBuf, sizeof(leaf) - 1);
     leaf[sizeof(leaf) - 1] = '\0';
-    ensureMdExt(leaf, sizeof(leaf));
+    ensureNoteExt(leaf, sizeof(leaf), ".jot");
     char full[224];
     joinPath(full, sizeof(full), st.path, leaf);
     if (SdMan.exists(full)) {
       showToast("Already exists");
       return;
     }
-    g_state.doc.reset(full);
+    if (endsWithExt(leaf, ".jot")) {
+      char starter[128];
+      jotStarter(starter, sizeof(starter), leaf);
+      g_state.doc.reset(full, starter);
+    } else {
+      g_state.doc.reset(full);
+    }
     if (!g_state.doc.save()) {
       showToast("Create failed");
       return;
@@ -295,7 +318,10 @@ static void commitName() {
   char leaf[80];
   strncpy(leaf, st.nameBuf, sizeof(leaf) - 1);
   leaf[sizeof(leaf) - 1] = '\0';
-  if (!st.isDir[st.menuTarget]) ensureMdExt(leaf, sizeof(leaf));
+  if (!st.isDir[st.menuTarget]) {
+    const char* dot = strrchr(oldraw, '.');
+    ensureNoteExt(leaf, sizeof(leaf), dot && hasNoteExt(oldraw) ? dot : ".jot");
+  }
   char newfull[224];
   joinPath(newfull, sizeof(newfull), st.path, leaf);
 

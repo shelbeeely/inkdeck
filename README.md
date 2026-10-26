@@ -1,7 +1,7 @@
 # InkDeck
 
-A super-minimal **markdown writing** firmware for the Xteink **X3/X4** (ESP32-C3
-e-ink devices). Pair a Bluetooth HID input device, write `.md` files to the SD
+A super-minimal **Jot and markdown writing** firmware for the Xteink **X3/X4** (ESP32-C3
+e-ink devices). Pair a Bluetooth HID input device, write `.jot` (or `.md`) files to the SD
 card, and manage them — create/rename/delete files and folders — from the device
 buttons or a connected keyboard.
 
@@ -21,7 +21,7 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
 
 ## Using it
 
-- **Browser** — the SD card file list (folders first, then `.md` files). Navigate
+- **Browser** — the SD card file list (folders first, then `.jot`, `.md`, `.markdown` and `.txt` files). Navigate
   with the device buttons or a connected keyboard's arrows/Enter; `Back` leaves a
   folder.
   - **New file / New folder / Rename / Delete** via the on-screen menu.
@@ -31,6 +31,41 @@ for X3/X4 auto-detection, and two pieces added to the SDK for this firmware:
     Home / End / PageUp / PageDown to move · Backspace / Delete to edit.
 - **Name entry** (new file/folder, rename) **requires a connected keyboard** —
   you'll be prompted to pair one first.
+
+## Jot files
+
+New files are **`.jot`** unless you type another extension (`notes.md` stays markdown).
+A `.jot` file is a plain-text [Jot v1](https://github.com/shelbeeely/.jot) document:
+markdown plus a few journal marks, so everything you already type works. A new one
+starts with its metadata block, titled from the file name:
+
+```
+---
+Jot: 1.0
+Title: 2026-10-26
+---
+
+```
+
+Jot marks worth knowing on a keyboard: `[ ] task` / `[x] done`, `o 6:30p event`,
+`? question`, `! idea`, and a `### 2026-10-26 | Monday` heading to start a day's entry
+(several days can share one file).
+
+**Into the book.** The `.jot` builder (Journalwright's engine, in the `.jot` repository)
+prints these notes into the monthly book, after the week they belong to. Copy the card's
+files (or point at the card) and build:
+
+```sh
+cd journal && KW_JOTS=/path/to/card node render.mjs month 2026-10
+```
+
+An entry needs a date: name the file `YYYY-MM-DD.jot`, or add a `### YYYY-MM-DD`
+heading. InkDeck has no clock it can trust, so it never fills the date in for you;
+the build names any undated note and leaves it out.
+
+**Packaged `.jot`** files (ZIP, with images or handwriting inside) are listed but not
+opened: they are binary, and saving one as text would destroy it. Open those on a
+computer.
 
 ## Building
 
@@ -58,5 +93,6 @@ src/
   main.cpp      lifecycle, input routing, refresh policy (FreeInkApp loop)
   AppState.h    screen enum + shared app state
   Document.*    the open file: fixed-capacity in-RAM text buffer + load/save
+                (refuses ZIP-packaged .jot; new .jot files start from a Jot header)
   screens.*     browser, editor, file-ops menu, name entry, bluetooth screens
 ```
